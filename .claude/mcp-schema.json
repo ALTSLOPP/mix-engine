@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MIX Engine MCP Tool Definitions",
+  "description": "Exposed Model Context Protocol tools for AI coding agents",
+  "tools": [
+    {
+      "name": "mix_do",
+      "description": "Execute a batch of AICommands; returns created/removed entities, warnings and errors.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "commands": {
+            "type": "string",
+            "description": "One command or an array (applied in order)."
+          },
+          "settleMs": {
+            "type": "number",
+            "description": "How long to wait for async spawns/asset loads after the queue drains (default 200)."
+          }
+        },
+        "required": [
+          "commands"
+        ]
+      }
+    },
+    {
+      "name": "mix_plan",
+      "description": "Preflight an AICommand batch without changing the engine: catches unknown commands, missing required parameters, unsafe payload keys, and atomic-rollback incompatibilities.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "commands": {
+            "type": "string",
+            "description": "One command or an ordered array to validate."
+          },
+          "atomic": {
+            "type": "boolean",
+            "description": "When true, also require every command to be safely reversible by a scene snapshot."
+          }
+        },
+        "required": [
+          "commands"
+        ]
+      }
+    },
+    {
+      "name": "mix_apply",
+      "description": "GUARDED APPLY: serialize competing IDE edits, preflight, execute, return a semantic diff, verify postconditions, auto-rollback failed scene edits, and deduplicate retries.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "commands": {
+            "type": "string",
+            "description": "One command or an ordered array. Entity fields accept numeric ids or stable @name, guid:<guid>, tag:<tag>, and selector-object refs resolved before mutation."
+          },
+          "expects": {
+            "type": "string",
+            "description": "Optional postconditions; a failure rolls back an atomic batch."
+          },
+          "atomic": {
+            "type": "boolean",
+            "description": "Require snapshot-safe commands and roll back failures (default true)."
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "Validate and return the plan without executing."
+          },
+          "requestKey": {
+            "type": "string",
+            "description": "Stable retry key (1..128 chars); identical retries return the original result without re-execution."
+          },
+          "settleMs": {
+            "type": "number",
+            "description": "How long to wait after async work settles (default 200)."
+          }
+        },
+        "required": [
+          "commands"
+        ]
+      }
+    },
+    {
+      "name": "mix_resolve",
+      "description": "Resolve one stable semantic entity reference to its current numeric id and full entity info. Ambiguous names/tags fail with candidates instead of guessing.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "number",
+            "description": "Stable selector to resolve against the current scene."
+          }
+        },
+        "required": [
+          "ref"
+        ]
+      }
+    },
+    {
+      "name": "mix_describe",
+      "description": "Token-efficient summary of the whole scene (entities, camera, bounds, selection, mode).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "mix_query",
+      "description": "Filtered, structured list of entities.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "description": "Optional filter; omit for everything."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "mix_get",
+      "description": "Full info on one entity (kind, name, tags, world position + size, body type).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "entityId": {
+            "type": "number",
+            "description": "Entity id."
+          }
+        },
+        "required": [
+          "entityId"
+        ]
+      }
+    },
+    {
+      "name": "mix_raycast",
+      "description": "Which entity is under a screen point — the agent's \"look at the crosshair\".",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "screen": {
+            "type": "string",
+            "description": "Normalized [0,1] screen point; defaults to centre (0.5,0.5)."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "mix_checkpoint",
+      "description": "Save a named in-memory snapshot of the scene.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Snapshot name."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    },
+    {
+      "name": "mix_restore",
+      "description": "Restore a previously-saved snapshot (entity ids are reissued).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Snapshot name."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    },
+    {
+      "name": "mix_checkpoints",
+      "description": "List the names of saved snapshots.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "mix_observe",
+      "description": "RENDER-grounded visual check (the agent's \"look at the screen\"): renders the live scene offscreen and reports frame health (black/blown-out) + per-entity on-screen PIXEL coverage + on-screen position + plain-English anomalies. Catches what state queries cannot — an entity can exist yet draw zero pixels (invisible, occluded, mis-scaled). Works headless.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "description": "Optional; omit to observe all physics entities."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "mix_assert",
+      "description": "Evaluate expectations so the agent can validate its own edits — including RENDER-grounded visual ones.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expects": {
+            "type": "string",
+            "description": "entity_exists | entity_count | entity_near | no_errors | entity_visible (name?/tag?/entityKind?/minCoveragePct?) | frame_renders."
+          }
+        },
+        "required": [
+          "expects"
+        ]
+      }
+    },
+    {
+      "name": "mix_manifest",
+      "description": "Return this capability manifest.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "mix_status",
+      "description": "Engine liveness + a one-line scene summary.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "mix_find_path",
+      "description": "A* path between two world points (NavigationSystem). Returns waypoints + length.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "number",
+            "description": "World-space start."
+          },
+          "to": {
+            "type": "number",
+            "description": "World-space goal."
+          },
+          "smooth": {
+            "type": "boolean",
+            "description": "String-pull smoothing (default true)."
+          },
+          "goalTolerance": {
+            "type": "number",
+            "description": "Goal snap radius in metres."
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      }
+    },
+    {
+      "name": "mix_nav_status",
+      "description": "Navmesh build state + every NavAgent (mode, speed, path, target).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  ]
+}

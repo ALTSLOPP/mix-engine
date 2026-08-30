@@ -1,0 +1,435 @@
+# MIX Engine — AI Command Reference
+
+All coordinates are WORLD space (metres). Commands sent via `/api/cli-command` WS, `window.engine.runScript([...])`, or `node scripts/mix-cli.js`.
+
+## Animation
+- `anim_event_add {state, normalizedTime, event, payload?}` — Attach a frame-accurate event marker to an animation state.
+- `anim_pack_apply {packId, target?, prefix?}` — ANIM PACKS: register every clip in a pack onto target AnimationStateMachines (target "all" or an entity id/@name/tag or number[]; prefix optional).
+- `anim_pack_list {}` — ANIM PACKS: list every imported animation pack (defs + cross-pack issues) into lastQueryResult & /api/scene-query.
+- `anim_pack_preview {packId, entryId, entityId?, fade?}` — ANIM PACKS: preview one clip on a character (selected gizmo or explicit entityId).
+- `anim_pack_remove {packId}` — ANIM PACKS: remove a pack (clips stay on already-wired ASMs).
+- `anim_pack_wire_combat {packId, mapping?, auto?, target?, prefix?}` — ANIM PACKS: wire a pack combat slots (idle/lightAttack/heavyAttack/block/hit/death); auto:true infers from pack category/name so a store pack needs zero manual mapping.
+- `character_motion_setup {entityId, packId?}` — HIGH-LEVEL ORCHESTRATION: one-shot full character animation setup (base layer, upper-body mask, parameters, pack clips).
+- `combat_motion_setup {entityId, packId?}` — HIGH-LEVEL ORCHESTRATION: configure combat layers, combo sequences, and root-motion warping.
+- `ik_aim_target {entityId, target, weight?}` — Aim bones (head/spine/weapon) towards a world-space target with procedural IK.
+- `import_animation_pack {packId, targetRig, sourcePath?, displayName?, boneMappingOverride?, scaleOverride?, keepRootMotion?, qualityPreset?, footLock?}` — RETARGET PRO: import FBX/GLB folder, auto-detect rig, perform hierarchical world-space bind alignment, scale root motion, and return a structured readiness report. qualityPreset:"aaa" enables foot contact correction.
+- `locomotion_motion_setup {entityId, mode?}` — HIGH-LEVEL ORCHESTRATION: configure 1D/2D directional locomotion blend trees with speed damping.
+- `morph_get {entityId, morph}` — Read current blendshape morph target weight on a mesh.
+- `morph_set {entityId, morph, weight, duration?}` — Set blendshape morph target weight on a mesh with optional tween duration.
+- `morph_set_weight {entityId, morph, weight, duration?}` — Compatibility alias for morph_set.
+- `morphs_list {entityId}` — List available morph target blendshape names on an entity.
+- `motion_crossfade {entityId, targetClip, fade?, layer?}` — MOTION DIRECTOR: crossfade to a target animation clip.
+- `motion_graph_inspect {entityId, include?}` — MOTION DIRECTOR: structured introspection of layers, active states, weights, events, and root motion.
+- `motion_layer_create {entityId, name, index?, blendMode?, mask?}` — MOTION DIRECTOR: create an animation layer with blendMode (override/additive) and weighted mask.
+- `motion_layer_weight {entityId, layer, weight, fade?}` — MOTION DIRECTOR: set layer weight with fade transition.
+- `motion_parameter_get {entityId, name}` — MOTION DIRECTOR: read parameter value from MotionGraph.
+- `motion_parameter_set {entityId, name, value, damping?}` — MOTION DIRECTOR: set damped parameter on MotionGraph (number/bool/string/vector).
+- `motion_pause {entityId}` — MOTION DIRECTOR: pause motion playback on an entity.
+- `motion_play {entityId, clip, packId?, layer?, fade?, speed?, loop?, rootMotion?}` — MOTION DIRECTOR: direct code-driven clip playback with layer, fade, speed, loop, and root-motion policy.
+- `motion_preview {clip, packId?, entityId?, fade?}` — MOTION DIRECTOR: preview animation clip on character.
+- `motion_quality_report {entityId}` — HIGH-LEVEL ORCHESTRATION: generate AAA animation readiness & quality report for character.
+- `motion_resume {entityId}` — MOTION DIRECTOR: resume motion playback on an entity.
+- `motion_stop {entityId, fade?, layer?}` — MOTION DIRECTOR: stop motion playback on an entity or specific layer with fade.
+- `play_animation {entityId, state, fade?}` — Transition a character to an animation state.
+- `retarget_pro_build {packId, targetRig, sourcePath, displayName?, qualityPreset?, strict?, target?, autoApply?, autoWireCombat?, previewEntry?, prefix?, keepRootMotion?, boneMappingOverride?, scaleOverride?}` — RETARGET PRO ONE-SHOT FOR IDE AGENTS: import + AAA quality pass + structured gate + apply to characters + auto-wire combat + optional preview. Use strict:true to reject anything below grade A/READY.
+- `retarget_pro_report {packId?}` — RETARGET PRO QA: machine-readable grade/readiness, profiles, categories, root-motion coverage, scale range, severity buckets, and actionable recommendations for one or all packs.
+
+## Audio
+- `add_trigger_zone {id, x, y, z, radius, enterSound?, exitSound?, ambientSound?, volume?}` — Add a spherical world trigger with optional audio cues.
+- `attach_sound {entityId, src, volume?, loop?}` — Attach a looping sound to an entity.
+- `crossfade_music {src, duration?}` — Crossfade to a streaming music track.
+- `play_sound {src, x?, y?, z?, volume?, loop?, refDistance?, maxDistance?}` — Play a positional/one-shot sound.
+- `remove_trigger_zone {id}` — Remove a trigger zone by id.
+- `set_bus_volume {bus, volume}` — Set one audio mixer bus volume.
+- `set_master_volume {volume}` — Set master audio volume.
+- `stop_music {fadeOut?}` — Stop music with an optional fade.
+- `stop_sound {src?, entityId?}` — Stop a sound by src or entity.
+
+## Cinematic
+- `camera_preset {preset, anchorToSelection?}` — Apply a built-in camera preset (18 shipped: default, isometric, top_down, front, back, left, right, bird_eye, etc.).
+- `camera_preset_next {}` — Cycle to next camera preset.
+- `camera_preset_prev {}` — Cycle to previous camera preset.
+- `camera_shake {trauma?, duration?, frequency?, translation?, rotation?}` — Trigger cinematic camera shake.
+- `cinematic_play {sequence}` — Play a scripted camera sequence.
+- `cinematic_stop {}` — Stop the cinematic camera.
+- `cutscene_play {sequence}` — Play a unified cutscene event sequence.
+- `cutscene_stop {}` — Stop the active cutscene sequence.
+- `cutscene_subtitle {text, speaker?, duration?}` — Show a timed cinematic subtitle.
+- `focus_entity {entityId}` — Frame the camera on an entity.
+- `follow_path {entityId, points, speed?, loop?, lookAlongPath?}` — Make an entity travel a spline path.
+- `frame_all {padding?}` — Frame all scene entities in the editor camera.
+- `frame_entity {entityId, padding?}` — Frame one entity in the editor camera.
+- `list_camera_presets {}` — List all built-in camera presets with ids and descriptions.
+- `screen_flash {color?, intensity?, duration?, mode?}` — Flash or pulse the screen overlay.
+- `screenshot {filename?, width?, height?}` — Capture a hi-res still to public/screenshots/.
+- `set_camera {position, lookAt?, fov?}` — Position/aim/FOV the camera (world space).
+- `timeline_create {id, duration, loop?, tracks}` — Define multi-track cinematic timeline sequence with keyframes and tracks.
+- `timeline_play {id, loop?}` — Play cinematic timeline animation sequence.
+- `timeline_scrub {id, time}` — Scrub cinematic timeline sequence to target timestamp.
+- `timeline_stop {id}` — Stop playback of cinematic timeline sequence.
+- `zoom_in {factor?}` — Zoom the editor camera in.
+- `zoom_out {factor?}` — Zoom the editor camera out.
+- `zoom_reset {}` — Reset editor camera zoom.
+
+## Entity
+- `destroy_entity {entityId}` — Remove an entity (cascades to children).
+- `parent_entity {entityId, parentId}` — Reparent an entity while preserving its world transform; use parentId:null to detach.
+- `prefab_instances {}` — List linked prefab instances and their entity ids.
+- `prefab_list {}` — List registered prefab definitions.
+- `prefab_register {prefab}` — Register a nested prefab definition with optional named variants.
+- `prefab_spawn {name, position, rotation?, variant?}` — Spawn and track a prefab instance, optionally applying a variant.
+- `prefab_unpack {rootEntity}` — Break a prefab instance link while preserving its entities.
+- `remove_tag {entityId, tag}` — Remove a semantic tag from an entity.
+- `scatter {blueprint, count, center, radius, seed?}` — Scatter N of a blueprint in a disk (seedable).
+- `selection_add {entityId}` — Add an entity to the editor multi-selection.
+- `selection_clear {}` — Clear editor selection.
+- `selection_get {}` — Return selected entity ids and the primary entity.
+- `selection_set {entityIds, primary?}` — Replace the editor multi-selection and choose its primary gizmo entity.
+- `selection_toggle {entityId}` — Toggle an entity in the editor multi-selection.
+- `set_entity_name {entityId, name}` — Name an entity (so agents can reference it).
+- `set_transform {entityId, position?, rotation?, scale?}` — Teleport/orient an entity (world space, zero velocity carry).
+- `spawn_entity {x, y, z, glbPath}` — Spawn a GLB/preset entity at a world position.
+- `spawn_group {blueprint, positions}` — Spawn one blueprint at many positions.
+- `spawn_smart {query, x, y, z, dynamic?, scale?, compound?}` — SEMANTIC spawn: resolve a free-text description ('rusty red car') to a tagged GLB via the SemanticAssetRegistry, then spawn it with parsed material dressing (tint + procedural rust/dirt) + an auto-fitted compound collider. Async; writes {assetId, score, material} to lastQueryResult.
+- `tag_entity {entityId, tag}` — Tag an entity.
+
+## Gameplay
+- `ability_cast {slot?}` — Cast an ability from a configured slot.
+- `arena_launch_demo {}` — Enable gameplay systems, start the arena and enter play mode.
+- `arena_start {}` — Start the configured arena waves.
+- `clear_state {}` — Clear all game-state keys.
+- `combat_add_health {entityId, hp, faction?, damageMultiplier?}` — COMBAT: add a health component to an entity.
+- `combat_add_hitbox {entityId, colliderHandle, part, multiplier?}` — COMBAT: tag a sensor collider as a hitbox (head=2×, torso=1×, limb=0.5×).
+- `combat_apply_damage {attackerId?, targetId, amount, damageType?}` — COMBAT: apply direct damage (bypasses the fire/hitbox pipeline).
+- `combat_equip_weapon {entityId, weapon}` — COMBAT: equip a weapon spec (hitscan or projectile, damage, fire rate, spread).
+- `combat_fire {entityId, originX, originY, originZ, dirX, dirY, dirZ}` — COMBAT: fire the equipped weapon from a position towards a direction.
+- `combat_status {}` — COMBAT: query health records + active projectiles.
+- `delete_save {slot}` — SAVE: delete a saved slot.
+- `director_set_phase {phase}` — Direct AI gameplay pacing phase (relax, build_up, peak).
+- `feature_apply_preset {preset?}` — Apply a gameplay tuning preset.
+- `feature_configure {feature?, config?}` — Configure a modular gameplay system.
+- `feature_disable {feature?}` — Disable a modular gameplay system and cancel its active actions.
+- `feature_enable {feature?}` — Enable a modular gameplay system.
+- `feature_enable_all {}` — Enable all modular gameplay systems.
+- `feature_list {}` — List all modular gameplay systems and their enabled state.
+- `game_essentials_status {}` — Read pause, session, objective and settings state.
+- `game_notify {message?}` — Show a dismissible game notification.
+- `game_pause {}` — Pause simulation and open the pause menu in play mode.
+- `game_resume {}` — Resume paused gameplay.
+- `game_settings_set {settings?}` — Apply and optionally persist player graphics, audio and control preferences.
+- `gameplay_advance {quest, objective, by?}` — GAMEPLAY: advance an objective progress counter (default +1); auto-completes the quest when all required objectives are done.
+- `gameplay_complete_quest {quest}` — GAMEPLAY: force-complete a quest (runs its rewards).
+- `gameplay_dialogue_choose {index}` — GAMEPLAY: pick a choice on the active dialogue node (the dialogue UI issues this; -1 = Continue).
+- `gameplay_dialogue_start {id}` — GAMEPLAY: open a branching dialogue tree (from the loaded def's `dialogues`) — nodes show text + condition-gated choices that run actions (gift items, advance quests, set flags) and branch. Reuses the DialogueSystem UI; pauses the game. Emits dialogue_ended.
+- `gameplay_fail_quest {quest}` — GAMEPLAY: fail a quest.
+- `gameplay_load {def}` — GAMEPLAY: load an ENTIRE game's logic as one declarative JSON object — variables, trigger zones, reactive rules (WHEN trigger IF conditions THEN actions), multi-step quests/objectives, and timers. Rule actions are AICommands, so gameplay reaches the whole engine. Writes runtime status to lastQueryResult. The 'make it a game' layer.
+- `gameplay_reset {}` — GAMEPLAY: clear the loaded game definition.
+- `gameplay_set_var {key, value}` — GAMEPLAY: set a gameplay variable (fires var_changed rules).
+- `gameplay_signal {name, data?}` — GAMEPLAY: raise a custom signal (fires `signal` rules + echoes on the EventBus for scripts).
+- `gameplay_start_quest {quest}` — GAMEPLAY: activate a quest.
+- `gameplay_status {}` — GAMEPLAY: read the full runtime (status playing/won/lost, variables, quests + per-objective progress, zones, timers) into lastQueryResult.
+- `get_state {key}` — Read one game-state key.
+- `input_action_state {action}` — Query evaluated state of an input action.
+- `interaction_register {def}` — INTERACT: mark an entity (by entityId/name/tag) interactable — prompt + radius + optional requireFacing + `commands` run on the interact key (KeyE). Raises `interacted` → gameplay `interact` triggers; commands can open a chest (inventory_transfer), talk (dialogue_show), pull a lever (gameplay_signal).
+- `interaction_set_enabled {id, enabled}` — INTERACT: enable/disable an interactable at runtime.
+- `interaction_status {}` — INTERACT: read registered interactables + the current prompt target into lastQueryResult.
+- `interaction_trigger {id}` — INTERACT: programmatically activate an interactable (ignores range; respects once/cooldown).
+- `interaction_unregister {id}` — INTERACT: remove an interactable.
+- `inventory_clear {owner?}` — ITEMS: empty an owner's inventory.
+- `inventory_give {item, count?, owner?}` — ITEMS: add items to an owner's bag ('player' default). Writes {added} (capacity-limited) to lastQueryResult.
+- `inventory_list {owner?}` — ITEMS: read an owner's items (or every owner + item-def count when owner omitted) into lastQueryResult.
+- `inventory_remove {item, count?, owner?}` — ITEMS: remove items from an owner. Writes {removed} to lastQueryResult.
+- `inventory_transfer {from, to, item, count?}` — ITEMS: move items between two owners (e.g. loot 'chest_01' → 'player').
+- `inventory_use {item, owner?}` — ITEMS: use one unit (runs its onUse effects, consumes if consumable, fires item_used).
+- `item_define {def}` — ITEMS: register an item type — name/icon/stackable/maxStack/tags + `onUse` AICommand effects (heal, explode, unlock…) + free-form data. Composes with gameplay (giveItem/hasItem/item_used).
+- `kcc_get_state {entityId}` — Retrieve current KCC locomotion state machine status (idle, walk, run, air, slide, dash, crouch).
+- `list_saves {}` — SAVE: list saved slots (slot/savedAt/hasGameplay/itemOwners/stateKeys/hasPlayer) into lastQueryResult.
+- `list_state {}` — List all game-state keys and values.
+- `load_game {slot}` — SAVE: restore a slot — rebuilds gameplay structure quietly (no start rules), then applies saved quests/variables/inventory + teleports the player.
+- `load_scene {name?}` — Load a saved world snapshot.
+- `load_state_snapshot {name}` — Load a named game-state snapshot.
+- `objective_add {id?, title?, target?}` — Add an objective to the HUD and pause menu.
+- `objective_advance {id?, amount?}` — Advance an objective; completion emits an event and notification.
+- `remove_state {key}` — Remove one game-state key.
+- `save_game {slot}` — SAVE: snapshot ALL progress (gameplay def+runtime, inventory bags, persistent flags, player position) into a named slot for resumable games. Distinct from save_scene (geometry to disk) / save_state_snapshot (kv only). Summary → lastQueryResult.
+- `save_scene {name?}` — Persist the world snapshot to disk/IndexedDB.
+- `save_state_snapshot {name}` — Save a named game-state snapshot.
+- `session_add_score {amount?}` — Adjust the running round score.
+- `session_finish {result?}` — Finish the running round with a win or loss.
+- `session_start {}` — Start a round with fresh score and timer; does not reset the scene.
+- `set_state {key, value}` — Set one game-state key.
+- `spawner_clear {id}` — SPAWN: despawn every entity a spawner created (clear the arena).
+- `spawner_create {def}` — SPAWN: define a spawner — blueprint + area (point/sphere/box) + count/interval + maxAlive (concurrent cap) + total (lifetime cap) + tags + per-spawn `onSpawn` commands ("$entity" → new id, e.g. combat_add_health / add_nav_agent). GLB blueprints must be preloaded. WAVES = spawners chained by a gameplay rule on `spawner_cleared`.
+- `spawner_remove {id}` — SPAWN: remove a spawner (already-spawned entities are left alone).
+- `spawner_start {id}` — SPAWN: start (or restart a finished) spawner.
+- `spawner_status {id?}` — SPAWN: read spawner runtime (running/alive/spawnedTotal/exhausted) into lastQueryResult.
+- `spawner_stop {id}` — SPAWN: pause a spawner.
+- `target_lock_toggle {}` — Toggle the player target lock.
+
+## Misc
+- `add_nav_agent {entityId, mode?, targetX?, targetY?, targetZ?, targetEntityId?, patrol?, patrolLoop?, steering?, behaviorTree?, faceMovement?, groundSnap?, tag?, flockRadius?, queueLaneWidth?}` — NAV: attach a NavAgent to an entity (steering + pathfinding + behavior).
+- `add_script {entityId, sourceCode}` — Attach IDE-authored script source to an entity.
+- `burst_vfx {preset, x, y, z, count?}` — One-shot VFX burst.
+- `chunk_deltas_clear {}` — Clear all persistent streamed-chunk modifications.
+- `chunk_deltas_export {}` — Export persistent streamed-chunk modifications.
+- `chunk_deltas_import {data}` — Restore persistent streamed-chunk modifications.
+- `clear_debug_draw {}` — Clear all persistent debug primitives.
+- `cloth_create_grid {id, width, height, segsX, segsY, pinTop?}` — Generate a particle-based Verlet cloth mesh grid with pin constraints.
+- `cloth_list {}` — List live cloth simulations and particle/constraint counts.
+- `cloth_remove {id}` — Remove and dispose a live Verlet cloth simulation.
+- `component_add {entityId, component, props?}` — Attach a modular ECS component to an entity.
+- `component_get {entityId, component}` — Read serialized state of an attached modular component.
+- `component_remove {entityId, component}` — Detach and destroy a modular ECS component on an entity.
+- `component_set {entityId, component, prop, value}` — Update a property on an attached modular ECS component.
+- `components_list {}` — List all registered modular ECS component types with schemas.
+- `decal_spawn {position, normal, size?, color?, lifespan?}` — Project a surface decal (bullet hole, scorch mark, blood splatter) onto scene geometry.
+- `dialogue_show {text, speaker?, choices?, pauseGame?}` — Show branching dialogue whose choices can run AICommands.
+- `draw_debug_box {centerX, centerY, centerZ, sizeX, sizeY, sizeZ, color?, lifetime?}` — Draw a temporary world-space debug box.
+- `draw_debug_line {fromX, fromY, fromZ, toX, toY, toZ, color?, lifetime?}` — Draw a temporary world-space debug line.
+- `draw_debug_ray {originX, originY, originZ, dirX, dirY, dirZ, length, color?, lifetime?}` — Draw a temporary world-space debug ray.
+- `draw_debug_sphere {centerX, centerY, centerZ, radius, color?, lifetime?}` — Draw a temporary world-space debug sphere.
+- `draw_debug_text {x, y, z, text, color?, size?, lifetime?}` — Draw temporary world-space debug text.
+- `emit_event {event, data?}` — Emit a named engine event with optional data.
+- `explosion_feedback {x?, y?, z?, color?}` — Trigger cinematic explosion feedback.
+- `export_tauri_manifest {title?, version?, fullscreen?}` — Generate Tauri desktop executable configuration for cross-platform export.
+- `export_typings {}` — Export current IDE TypeScript declarations.
+- `history_clear {}` — Clear the undo/redo history stack.
+- `history_list {}` — List recent undoable actions in history.
+- `hit_feedback {x?, y?, z?, color?, intensity?, vfx?}` — Trigger combined hit VFX, flash, and camera feedback.
+- `hlod_create {id, entityIds, prototypeEntityId?, nearDistance?, farDistance?, views?, tileSize?}` — Bake an impostor atlas, batch a source cluster, and enable runtime near/far swapping.
+- `hlod_list {}` — List runtime HLOD clusters and swap state.
+- `hlod_remove {id}` — Remove an HLOD cluster and restore its full-detail sources.
+- `hud_clear {}` — Remove all HUD widgets.
+- `hud_hide {id}` — Hide a HUD widget.
+- `hud_load {layout}` — Load a declarative HUD layout.
+- `hud_show {id}` — Show a HUD widget.
+- `import_asset {id, url, assetType?}` — IMPORT: download a third-party asset from a URL, cache in IndexedDB, register with manifest.
+- `import_clear {id?}` — IMPORT: clear a cached asset (or all).
+- `import_list {}` — IMPORT: list all cached asset ids.
+- `input_action_define {name, kind, bindings?, deadzone?, responseCurve?, context?}` — Define or modify an input action with multi-device bindings and deadzone.
+- `input_actions {}` — Export the complete JSON-friendly input action asset.
+- `input_bind {action, binding}` — Bind a physical device input to an existing action.
+- `input_context_pop {name?}` — Pop an input context layer from the priority stack.
+- `input_context_push {name, priority?, actions?, maskAllBelow?}` — Push a named input context layer onto the priority stack.
+- `input_contexts {}` — List all active input contexts on the priority stack.
+- `input_gamepad_controls {}` — List Unity-style semantic Gamepad control paths and aliases.
+- `input_gamepad_rumble {pad?, durationMs?, weakMagnitude?, strongMagnitude?}` — Trigger dual-rumble haptic feedback on a gamepad.
+- `input_gamepad_status {}` — Query connected gamepads status.
+- `input_remap {actions, context?}` — Replace a context action map from an action asset or actions array.
+- `input_synthetic {action, value}` — Inject synthetic headless action input for automated tests and SENSORIUM.
+- `input_unbind {action}` — Remove all physical bindings from an input action.
+- `inspect_deserialize {json}` — INSPECTOR STUDIO: deserialize polymorphic JSON into structured runtime object.
+- `inspect_diff {a, b}` — INSPECTOR STUDIO: compute deep structural diff between two inspector objects.
+- `inspect_property_get {entityId, path}` — INSPECTOR STUDIO: read nested property value through PropertyTree reflection path.
+- `inspect_property_set {entityId, path, value}` — INSPECTOR STUDIO: write property value through PropertyTree reflection path.
+- `inspect_schema_define {target, schema}` — INSPECTOR STUDIO: define or replace an inspector schema for a target class/type.
+- `inspect_schema_get {target}` — INSPECTOR STUDIO: retrieve registered inspector schema metadata for a target class/type.
+- `inspect_schema_patch {target, patch}` — INSPECTOR STUDIO: patch an existing inspector schema with partial metadata.
+- `inspect_serialize {entityId}` — INSPECTOR STUDIO: serialize entity or component into deterministic polymorphic JSON.
+- `inspect_validate {entityId?, scope?, dryRun?, autoFix?}` — INSPECTOR STUDIO: run live or global validation with structured issues, warnings, and auto-fix dry-runs.
+- `kcc_get_params {entityId}` — Query current KCC parameters for a character.
+- `kcc_get_telemetry {entityId}` — Retrieve live KCC physics feel metrics (grounding, jitter, impact G, wall hits).
+- `kcc_set_params {entityId, params}` — Configure KCC kinematic locomotion parameters (speeds, jumps, slopes, coyote, dash).
+- `kcc_telemetry_get {entityId}` — Compatibility alias for kcc_get_telemetry.
+- `kcc_teleport {entityId, x, y, z}` — Teleport KCC character to world position and reset momentum.
+- `network_disconnect {}` — Disconnect and return to offline simulation.
+- `network_host {url}` — Start authoritative replication over WebSocket.
+- `network_join {url}` — Join an authoritative session over WebSocket.
+- `network_local_player {entityId}` — Select the locally predicted entity.
+- `network_replicate {entityId, enabled?}` — Add or remove an entity from delta-compressed replication.
+- `network_status {}` — Query role, connection, tick, traffic, and reconciliation stats.
+- `package_game {title?, entryScene?, visualStyle?}` — Bundle scenes, assets, gameplay rules, and visual styles into standalone game manifest.
+- `playback_run {script}` — Run a deterministic playback test script.
+- `playback_status {}` — Read playback test status.
+- `playback_stop {}` — Stop the active playback test.
+- `preload_assets {ids}` — Preload assets by id.
+- `profiler_clear {}` — Clear captured profiler history.
+- `profiler_history {limit?}` — Return recent frame profiles for timeline analysis.
+- `profiler_set {enabled}` — Enable or disable frame-timeline and VRAM profiling.
+- `profiler_status {}` — Return the latest subsystem frame slices, render counters, and estimated VRAM.
+- `redo {}` — Redo the last reverted transactional change from history.
+- `register_asset {id, path, assetType?}` — Register a GLB path under an id for spawning.
+- `remove_nav_agent {entityId}` — NAV: remove a NavAgent (entity untouched).
+- `remove_script {entityId}` — Remove the script attached to an entity.
+- `replay_pause {}` — Pause replay playback.
+- `replay_play {}` — Play the loaded replay.
+- `replay_set_frame {frame}` — Seek replay to an exact frame.
+- `replay_start_recording {}` — Start recording an input replay.
+- `replay_step {}` — Advance replay by one frame.
+- `replay_step_back {}` — Move replay back by one frame.
+- `replay_stop {}` — Stop replay playback.
+- `replay_stop_recording {}` — Stop input replay recording.
+- `run_script {commands}` — Run a nested batch of commands.
+- `sensorium_baseline {name}` — Select or save a named SENSORIUM baseline.
+- `sensorium_run {script}` — Run a custom SENSORIUM test script.
+- `sensorium_status {}` — Read SENSORIUM runner status.
+- `sensorium_stop {}` — Stop the active SENSORIUM run.
+- `sensorium_test {profile, options?}` — SENSORIUM: run a vision/feel test by profile (driving, locomotion, …).
+- `set_debug_draw {enabled}` — Enable or disable runtime debug drawing.
+- `set_nav_behavior_tree {entityId, tree}` — NAV: install / replace an agent behavior tree (sets mode to behavior_tree).
+- `set_nav_blackboard {entityId, key, value}` — NAV: set a blackboard key on an agent behavior tree.
+- `set_nav_steering {entityId, steering}` — NAV: override an agent steering params (maxSpeed, arriveRadius, …).
+- `set_nav_target {entityId, mode, targetX?, targetY?, targetZ?, targetEntityId?, patrol?}` — NAV: set / change an agent mode + target (resets its path).
+- `set_time_scale {scale}` — Set simulation time scale.
+- `spawn_decal {ox, oy, oz, dx, dy, dz, size?, color?, lifetime?, tag?}` — Ray-project a decal from an origin and direction.
+- `spawn_trail {color?, lifetime?, width?, segments?}` — Spawn a configurable motion trail.
+- `spawn_vfx {preset, x, y, z, duration?, loop?, maxParticles?}` — Spawn a VFX emitter at a world position.
+- `undo {}` — Undo the last transactional change from history.
+- `weather_set {state, transitionDuration?}` — Transition world weather conditions (clear, rain, storm, snow, foggy).
+
+## Navigation
+- `eqs_query {querier, target?, generator, tests}` — EQS: generate and score tactical positions using navigation, distance, LOS, facing, and cover tests.
+- `find_path {fromX, fromY, fromZ, toX, toY, toZ, smooth?, goalTolerance?}` — NAV: A* path between two world positions (waypoints to lastQueryResult).
+- `goap_plan {startState, goalState, actions}` — Compute optimal action sequence to achieve world-state goals using Goal-Oriented Action Planning.
+- `nav_debug {enabled?}` — NAV: toggle the navmesh + path debug overlay.
+- `nav_goto {entityId, target, pathMode?, arriveRadius?, requirePath?, timeoutSec?}` — NAV: SEMANTIC — send an agent to a named landmark / named-or-tagged entity / world point at a gait (walk|run|sprint). Auto-creates the agent; async, writes the arrival result (status/elapsed/pathLength) to lastQueryResult.
+- `nav_query {x, z}` — NAV: walkable floor height at a world position.
+- `nav_register_landmark {name, x, y, z, radius?}` — NAV: register/move a named semantic destination the AI can nav_goto by string.
+- `navmesh_auto {enabled, maxRegionsPerFrame?, maxQueued?}` — NAV: enable/configure the dynamic, chunk-aware navmesh (incremental per-region re-rasterization as chunks stream and buildings extrude).
+- `navmesh_build {centerX, centerZ, size, cellSize?, agentRadius?, agentHeight?, maxSlopeDeg?, maxStepHeight?}` — NAV: (re)build the heightfield navmesh over a world region (async).
+- `navmesh_build_multilayer {centerX, centerZ, size, cellSize?, agentRadius?, agentHeight?, maxSlopeDeg?, maxStepHeight?}` — NAV: voxel-rasterize scene triangles into a live multi-span navmesh for floors, bridges, and underpasses.
+- `navmesh_invalidate {minX, minZ, maxX, maxZ}` — NAV: invalidate a world-space rectangle of the navmesh (re-rasterized over the next ticks) — call after extruding/demolishing a building.
+
+## Physics
+- `active_ragdoll_attach {entityId, muscleStiffness?, muscleDamping?, strength?}` — Attach fixed-step muscle motors to an existing ragdoll.
+- `active_ragdoll_knockdown {entityId, seconds?}` — Temporarily collapse an active ragdoll, then recover.
+- `active_ragdoll_strength {entityId, strength}` — Set active-ragdoll muscle strength.
+- `add_vehicle {entityId, wheels, spec?}` — VEHICLE: attach a raycast-vehicle controller to a dynamic entity (the chassis).
+- `apply_impulse {entityId, x, y, z}` — Apply a one-shot impulse to a dynamic body.
+- `buoyancy_add {entityId, volume?, height?}` — Register a rigid body for fixed-step Gerstner-water buoyancy.
+- `buoyancy_remove {entityId}` — Remove an entity from buoyancy simulation.
+- `buoyancy_status {entityId}` — Query entity submersion and swimming state.
+- `collision_layer_define {name, id?, collidesWith}` — Define or reconfigure a named collision layer and its collision matrix filter.
+- `collision_matrix_get {}` — Dump the full 16-bit collision matrix layer definitions.
+- `collision_set_layer {entityId, layer}` — Assign an entity to a named collision layer.
+- `foot_ik_set {entityId, enabled, rayLength?, footOffset?, maxPelvisDrop?, smoothSpeed?}` — Enable or disable post-animation grounded foot IK.
+- `joint_create {jointType, entityA, entityB, anchorA, anchorB, axisA?, axisB?, limits?, motor?, breakForce?}` — Create a physics joint between two rigid bodies (fixed, spherical, revolute, prismatic, rope, spring).
+- `joint_remove {jointId}` — Remove and destroy a physics joint by id.
+- `joints_list {}` — List all active physics joints.
+- `mesh_fracture {entityId, epicenter?, pieces?, impulse?, lifespan?}` — Fracture a rigid body into temporary dynamic physics shards with explosive impulse.
+- `ragdoll_create {rootEntity, x?, y?, z?}` — Create a procedural multi-bone humanoid ragdoll.
+- `ragdoll_destroy {rootEntity}` — Destroy a humanoid ragdoll instance and its bone bodies.
+- `ragdoll_set_active {rootEntity, active}` — Toggle between active dynamic ragdoll simulation and kinematic animation.
+- `ragdoll_set_dynamic {rootEntity, dynamic}` — Compatibility alias for ragdoll_set_active.
+- `ragdoll_spawn {rootEntity, x?, y?, z?}` — Compatibility alias for ragdoll_create.
+- `remove_vehicle {entityId}` — VEHICLE: remove a vehicle controller (chassis untouched).
+- `set_angular_velocity {entityId, x, y, z}` — Set angular velocity.
+- `set_ccd {entityId, enabled}` — Toggle Continuous Collision Detection (CCD) on a rigid body.
+- `set_gravity {gravity}` — Set world gravity magnitude.
+- `set_vehicle_input {entityId, throttle?, brake?, steer?, handbrake?}` — VEHICLE: set throttle/brake/steer/handbrake (-1..1).
+- `set_velocity {entityId, x, y, z}` — Set linear velocity.
+- `spring_bone_add {entityId, bones, stiffness?, damping?, inertia?, radius?, gravity?}` — Attach a ticked secondary-motion chain to named rig bones.
+- `spring_bone_capsule {entityId, startBone, endBone, radius}` — Add a capsule spring collider spanning two moving bones.
+- `spring_bone_collider {entityId, bone?, radius, offset?}` — Add a bone-following spring collision sphere.
+- `spring_bone_remove {entityId}` — Remove all spring chains and colliders for an entity.
+- `vehicle_status {entityId?}` — VEHICLE: query vehicle speed/rpm/input/wheels-in-contact.
+
+## Rendering
+- `add_light {kind, position, color?, intensity?, distance?, castShadow?, target?, angle?, penumbra?, decay?, width?, height?, cookie?}` — Add a point/spot/directional/area light (camera-anchored). Spots take a cookie/gobo URL + angle/penumbra; area lights take width/height; pass target to aim.
+- `bake_ao {samples?, distance?, strength?, seed?}` — BAKE: deterministic vertex AO into vertex colors (seeded, diffable).
+- `bake_apply {name}` — BAKE: re-apply a named baked look.
+- `bake_flush {}` — BAKE: reverse vertex AO, restore original materials.
+- `bake_list {}` — BAKE: list named baked looks.
+- `bake_scene {name?}` — BAKE: capture current look into a named recipe (re-appliable, persisted via save_game).
+- `cull_enable {enabled, occlusion?, hierarchicalFrustum?}` — CULL: enable/disable hierarchical frustum + software occlusion culling.
+- `cull_rebuild {}` — CULL: rebuild the culling BVH from the current scene (after chunk load/unload).
+- `cull_set_exclude {entityId, exclude}` — CULL: tag an entity root to be excluded from culling (lights, gizmo, debug).
+- `cull_set_occluder {entityId, occluder}` — CULL: tag an entity root as an occluder (rasterized into the depth buffer).
+- `cull_status {}` — CULL: query the last cull stats (frustum/occlusion counts, timings).
+- `day_night_cycle {enabled?, hour?, speed?}` — Animated day/night: enable auto time-of-day (sun arc, dawn/dusk colour, fog), set the hour, or set the speed (clock-hours per real second). Throttled sky re-bake.
+- `fog_set_params {density?, heightFalloff?, groundLevel?, color?, anisotropy?}` — Configure atmospheric volumetric fog density, height falloff, color, and godray anisotropy.
+- `fog_volume_add {id, position, radius, density, color?}` — Spawn a local spherical volumetric fog/mist/smoke volume.
+- `gpu_particles_start {maxParticles?, x?, y?, z?}` — Initialize and dispatch the WebGPU compute particle simulation with a visible render proxy.
+- `gpu_particles_status {}` — Query WebGPU particle support and dispatch status.
+- `gpu_particles_stop {}` — Stop WebGPU particle compute dispatch.
+- `lod_enable {enabled}` — LOD: enable/disable auto level-of-detail (simplified meshes by camera distance).
+- `lod_register {entityId, distances?, ratios?}` — LOD: register an entity (generates 2 simplified levels via SimplifyModifier).
+- `lod_unregister {entityId}` — LOD: unregister an entity (restores original mesh).
+- `reflection_probe_capture {probeId}` — Mark a local reflection probe for recapture.
+- `reflection_probe_create {probeId, position, resolution?, boxSize?, intensity?}` — Create a live local cubemap reflection probe.
+- `reflection_probe_remove {probeId}` — Remove and dispose a local reflection probe.
+- `reverb_zone_create {zoneId, name, min, max, wet?, duration?, decay?}` — Create an AABB environmental DSP reverb zone with synthetic impulse response.
+- `reverb_zone_remove {zoneId}` — Remove an environmental reverb zone.
+- `set_environment {hdri?, sky?, background?, environmentIntensity?, backgroundIntensity?, backgroundBlurriness?}` — LIGHTING: swap procedural sky for an equirectangular HDRI (IBL+background), or revert (sky:true); tune IBL/background intensity + blur.
+- `set_exposure {value}` — Set tone-mapping exposure.
+- `set_material {entityId, color?, roughness?, metalness?, emissive?, emissiveIntensity?, transparent?, opacity?}` — Edit PBR material (color/rough/metal/emissive/opacity).
+- `set_post_fx {bloom?, bloomStrength?, outline?, vignette?, colorGrade?, chromaticAberration?, filmGrain?, godRays?, godRaysStrength?, godRaysDensity?, dof?, dofFocusDistance?, dofBokehScale?, dofAutoFocus?, ssr?, ssrIntensity?, ssrMaxDistance?, ssrThickness?, ssrFresnel?, volumetricFog?, fogDensity?, fogColor?, fogColorSun?, fogHeight?, fogHeightFalloff?, fogScattering?, fogAnisotropy?, fogMaxDistance?, motionBlur?, motionBlurIntensity?, motionBlurMax?, contactShadows?, contactShadowIntensity?, contactShadowDistance?, autoExposure?, exposureKey?, exposureMin?, exposureMax?, exposureSpeed?, taa?, taaFeedback?}` — Tune the post chain: bloom, outline, vignette, color grade, chromatic aberration, film grain, volumetric god rays, depth-of-field, screen-space reflections (ssr), volumetric atmospheric fog, camera motion blur, contact shadows, HDR auto-exposure/eye-adaptation, and temporal anti-aliasing (taa, replaces SMAA).
+- `set_shadow_strategy {strategy}` — RENDER: swap shadow strategy — single (1 map) or csm (4-cascade open-world).
+- `set_sky_environment {elevationDeg?, azimuthDeg?, fogDensity?, fogColor?}` — Set procedural sky direction and fog.
+- `set_time_of_day {hour}` — Set sun/sky from a 0–24 clock hour.
+- `set_tone {exposure}` — Set renderer exposure.
+- `set_visual_style {style, overrides?}` — VISUAL STYLE: one-command cinematic look — golden_hour/neon_night/stylized/photoreal/moody/midnight/daylight (sun+sky+fog+exposure+IBL+post). Optional overrides bag.
+- `set_weather {fogDensity?, fogColor?, ambient?}` — Fog density/color + ambient intensity.
+- `set_weather_preset {kind, intensity?}` — Apply a compact weather preset.
+- `world_canvas_create {canvasId, width?, height?, billboard?, position?, text?}` — Create an interactive in-world 3D UI plane with canvas rendering.
+- `world_canvas_destroy {canvasId}` — Destroy an in-world 3D UI canvas plane.
+- `world_canvas_set_text {canvasId, text, color?, background?}` — Update text rendered onto an in-world 3D UI plane.
+
+## Scene
+- `clear_scene {}` — Destroy everything and respawn a ground plane.
+- `query_raycast {origin, direction, maxDistance?}` — Physics ray query in world space.
+- `query_scene {filter?}` — Push a filtered scene query to the cache.
+- `query_sphere {center, radius, tags?}` — Find entities in a world-space sphere.
+- `scene_diff {beforeEntities?, afterEntities?}` — Compute structural and transform JSON delta between scene snapshots.
+- `set_gizmo_mode {mode}` — Choose translate, rotate, or scale gizmo mode.
+- `set_grid {size?, divisions?, colorCenterLine?, colorGrid?, visible?}` — Configure the editor grid.
+- `set_mode {mode}` — Switch editor/play mode.
+- `set_snap {enabled?, translateSnap?, rotateSnap?}` — Configure transform snapping.
+- `viewport_detach {}` — Detach the live viewport into its own window.
+- `viewport_reattach {}` — Return the detached viewport to the editor.
+
+## Terrain
+- `clouds_set {enabled?, coverage?, density?, speed?, scale?, heightBottom?, heightTop?, color?}` — CLOUDS: enable/tune the raymarched volumetric cloud layer (sun-lit, day/night-tinted).
+- `foliage_clear {}` — FOLIAGE: remove all foliage instances.
+- `foliage_populate {entityId?, density?, radius?, seed?}` — FOLIAGE: populate biome-aware vegetation (instanced trees/bushes/rocks, wind-swayed) over the terrain; streams around the camera.
+- `foliage_set {enabled?, density?}` — FOLIAGE: enable/disable or rescale foliage density.
+- `terrain_create {x, y, z, size?, resolution?, materialId?, seed?, baseNoiseAmplitude?}` — TERRAIN: create a sculptable terrain mesh at a world position.
+- `terrain_erode {entityId?, kind, x?, z?, radius?, iterations?, options?}` — TERRAIN: apply hydraulic/thermal erosion.
+- `terrain_lod {entityId?, distances?}` — Configure terrain level-of-detail distances.
+- `terrain_material_layers {entityId?, layers}` — TERRAIN: set material layers (presets/URLs).
+- `terrain_noise {entityId?, x, z, radius, amplitude, frequency?, octaves?, seed?, hardness?}` — TERRAIN: apply fBm noise.
+- `terrain_paint {entityId?, layer, x, z, radius, strength?, hardness?}` — TERRAIN: apply multi-layer material painting.
+- `terrain_ramp {entityId?, from, to, width, hardness?}` — TERRAIN: apply a linear ramp.
+- `terrain_reset {entityId?}` — TERRAIN: reset terrain height to 0.
+- `terrain_sample {entityId?, x, z}` — TERRAIN: query world height at (x,z).
+- `terrain_scatter {entityId?, enabled?, density?, regenerate?}` — Configure or regenerate terrain scatter.
+- `terrain_sculpt {entityId?, op, x, z, radius, strength?, hardness?, targetHeight?, terraceStep?}` — TERRAIN: apply a sculpting operation.
+- `terrain_spline {entityId?, points, width, hardness?}` — TERRAIN: conform terrain to a path.
+- `water_create {kind?, seaLevel?, size?, segments?, position?, waveScale?, choppiness?, foam?, opacity?, deepColor?, shallowColor?, foamColor?}` — WATER: create a Gerstner-wave ocean (camera-following, sits at sea level y=0 — rings world_generate islands) or a fixed lake. Reflects sky+SSR, lit by day/night.
+- `water_remove {}` — WATER: remove all water bodies.
+- `water_sample {x, z}` — WATER: query the wave surface height at a world (x,z) — for buoyancy/floating.
+- `water_set {seaLevel?, waveScale?, choppiness?, foam?, opacity?, deepColor?, shallowColor?, foamColor?}` — WATER: tune the primary water body (creates an ocean if none exists).
+- `wind_set {dirX?, dirZ?, strength?, gustiness?}` — WIND: set the global wind field (direction/strength/gustiness) that drives foliage sway + cloud drift coherently.
+- `world_compose {entityId?, seed?, theme?, landform?, mood?, quality?, size?, resolution?, center?, water?, foliage?, navigation?, autoLayout?, paths?, pointsOfInterest?}` — WORLD COMPOSER ONE-SHOT FOR IDE AGENTS: turn a sparse theme/landform/mood request into a deterministic authored world — terrain+biomes, semantic POI pads, painted roads/trails/carved rivers, ocean, foliage, clouds, wind, weather, cinematic visual style, and optional navmesh. Returns a structured readiness report.
+- `world_generate {entityId?, seed?, size?, resolution?, amplitude?, oceanDepthRatio?, continentScale?, landBias?, mountainScale?, mountainAmount?, hillScale?, detailScale?, moistureScale?, warp?, island?, islandFalloff?, climate?}` — WORLDGEN: procedurally generate an entire open world (continents/mountains/biomes/auto-texture/scatter) from a seed; creates a terrain if none exists. Returns height range + biome histogram.
+- `world_report {}` — WORLD COMPOSER QA: inspect the last composed recipe against live terrain, traversal, water, foliage, atmosphere, and navigation; returns a readiness grade plus actionable recommendations.
+
+## Tween
+- `tween_audio {trackId?, volume, duration?, ease?}` — TWEEN DIRECTOR: fade audio volume smoothly.
+- `tween_camera {x?, y?, z?, fov?, lookAt?, duration?, ease?}` — TWEEN DIRECTOR: smooth camera movement, FOV transition, or LookAt targeting.
+- `tween_cancel {id?, entityId?}` — TWEEN DIRECTOR: cancel/kill tween or sequence by id, entityId, or all.
+- `tween_color {entityId?, property?, color, duration?, ease?}` — TWEEN DIRECTOR: animate material or light color smoothly.
+- `tween_complete {id?}` — TWEEN DIRECTOR: complete tween or sequence immediately.
+- `tween_effect_create {steps, effectId?, autoPlay?}` — TWEEN DIRECTOR: create high-level multi-step composite effect in a single command.
+- `tween_from {property, from, entityId?, target?, duration?, delay?, ease?, loops?, loopType?, conflictPolicy?, id?}` — TWEEN DIRECTOR: tween from initial value to current pose.
+- `tween_from_to {property, from, to, entityId?, target?, duration?, delay?, ease?, loops?, loopType?, conflictPolicy?, id?}` — TWEEN DIRECTOR: explicit from-to tween between two values.
+- `tween_inspect {}` — TWEEN DIRECTOR: return structured diagnostics and telemetry report of active tweens.
+- `tween_material {entityId, opacity?, roughness?, metalness?, emissive?, emissiveIntensity?, duration?, ease?}` — TWEEN DIRECTOR: animate material properties (opacity, roughness, metalness, emissive).
+- `tween_move {entityId, x?, y?, z?, duration?, ease?, loops?, loopType?, conflictPolicy?, id?}` — TWEEN DIRECTOR: smooth position movement on an entity.
+- `tween_path {entityId, waypoints, duration?, ease?, lookAhead?, autoRotate?}` — TWEEN DIRECTOR: animate entity along waypoints path with constant speed and banking.
+- `tween_pause {id?}` — TWEEN DIRECTOR: pause tween or sequence by id, or pause all.
+- `tween_punch {entityId, property?, x?, y?, z?, duration?, vibrato?, elasticity?}` — TWEEN DIRECTOR: decaying spring punch oscillation.
+- `tween_resume {id?}` — TWEEN DIRECTOR: resume tween or sequence by id, or resume all.
+- `tween_reverse {id}` — TWEEN DIRECTOR: reverse playback direction of tween or sequence.
+- `tween_rotate {entityId, x?, y?, z?, duration?, ease?, loops?, loopType?, conflictPolicy?, id?}` — TWEEN DIRECTOR: smooth rotation on an entity using shortest angular/quaternion path.
+- `tween_scale {entityId, scale?, x?, y?, z?, duration?, ease?, loops?, loopType?, conflictPolicy?, id?}` — TWEEN DIRECTOR: uniform or multi-axis scale tween.
+- `tween_seek {id, time?, progress?}` — TWEEN DIRECTOR: seek tween or sequence to specified time or normalized progress.
+- `tween_sequence_append {sequenceId, op, entityId?, x?, y?, z?, scale?, duration?, ease?}` — TWEEN DIRECTOR: append step to timeline sequence.
+- `tween_sequence_create {sequenceId?, timeScale?, loops?, loopType?, autoPlay?}` — TWEEN DIRECTOR: create a timeline sequence.
+- `tween_sequence_join {sequenceId, op, entityId?, x?, y?, z?, scale?, duration?, ease?}` — TWEEN DIRECTOR: join step running in parallel on timeline sequence.
+- `tween_sequence_marker {sequenceId, name, time?}` — TWEEN DIRECTOR: add named event marker to sequence timeline.
+- `tween_sequence_play {sequenceId}` — TWEEN DIRECTOR: play timeline sequence.
+- `tween_shake {entityId, property?, x?, y?, z?, duration?, frequency?, fadeOut?}` — TWEEN DIRECTOR: multi-frequency noise shake with decay.
+- `tween_to {property, to, entityId?, target?, duration?, delay?, ease?, loops?, loopType?, conflictPolicy?, id?}` — TWEEN DIRECTOR: tween a property to target value with duration, ease, loops, and conflict policy.
+- `tween_validate {sequenceJson}` — TWEEN DIRECTOR: validate sequence JSON against schema.
+

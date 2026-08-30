@@ -1,0 +1,36 @@
+{
+  "entities": [
+    {
+      "originalId": 3,
+      "blueprint": {
+        "kind": "character",
+        "params": {
+          "assetId": "ayo"
+        }
+      },
+      "position": [
+        33.80147171020508,
+        -0.8119367957115173,
+        -57.17096710205078
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1.2481199485009327,
+        1.2481199485009327,
+        1.2481199485009327
+      ],
+      "bodyType": "kinematic",
+      "additionalMass": 80,
+      "rootMotion": true
+    }
+  ],
+  "timeOfDay": 8.5,
+  "fogColor": "#06080a",
+  "fogDensity": 0.05,
+  "ambientIntensity": 0.35
+}

@@ -1,0 +1,14 @@
+{
+  "_comment": "Perf budgets for SENSORIUM / manual captures. Each scenario budget is the expected ceiling; measured metrics beyond budget*warnMultiplier fail CI. Tighten once you have real captures in artifacts/perf-metrics.json.",
+  "warnMultiplier": 1.25,
+  "scenarios": {
+    "driving": { "frameMs": 22, "calls": 1200, "triangles": 2000000, "geometries": 3000, "textures": 1200 },
+    "locomotion": { "frameMs": 18, "calls": 1000, "triangles": 1500000, "geometries": 2700, "textures": 900 },
+    "combat": { "frameMs": 20, "calls": 1100, "triangles": 1800000, "geometries": 2800, "textures": 1000 },
+    "jump": { "frameMs": 18, "calls": 1000, "triangles": 1500000, "geometries": 2700, "textures": 900 },
+    "camera": { "frameMs": 16, "calls": 900, "triangles": 1200000, "geometries": 2500, "textures": 800 },
+    "stress": { "frameMs": 33, "calls": 2000, "triangles": 4000000, "geometries": 5000, "textures": 1500 },
+    "editor_empty": { "frameMs": 16, "calls": 600, "triangles": 800000, "geometries": 2000, "textures": 600 },
+    "open_world_streaming": { "frameMs": 25, "calls": 1500, "triangles": 2500000, "geometries": 3500, "textures": 1100 }
+  }
+}

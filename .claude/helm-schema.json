@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HELM RPC Request",
+  "description": "Schema for HELM control-plane requests sent to /api/helm/rpc",
+  "type": "object",
+  "required": [
+    "op"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Optional request id echoed back"
+    },
+    "op": {
+      "type": "string",
+      "enum": [
+        "do",
+        "plan",
+        "apply",
+        "resolve",
+        "describe",
+        "query",
+        "get",
+        "raycast",
+        "checkpoint",
+        "restore",
+        "checkpoints",
+        "observe",
+        "assert",
+        "manifest",
+        "status",
+        "find_path",
+        "nav_status"
+      ],
+      "description": "Operation to perform"
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "AICommands for op:do, plan, or apply"
+    },
+    "settleMs": {
+      "type": "number",
+      "default": 200,
+      "description": "Settle time for op:do / apply"
+    },
+    "filter": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "description": "Filter for op:query or op:observe"
+    },
+    "entityId": {
+      "type": "number",
+      "description": "Entity id for op:get"
+    },
+    "screen": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "description": "NDC for op:raycast"
+    },
+    "name": {
+      "type": "string",
+      "description": "Checkpoint name for op:checkpoint / op:restore"
+    },
+    "expects": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Expectations for op:assert or op:apply"
+    },
+    "from": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "World [x,y,z] for op:find_path"
+    },
+    "to": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "smooth": {
+      "type": "boolean",
+      "default": true
+    },
+    "goalTolerance": {
+      "type": "number"
+    }
+  }
+}

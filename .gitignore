@@ -1,0 +1,20 @@
+node_modules/
+dist/
+dist-runtime/
+*.local
+.DS_Store
+public/worlds/
+public/assets/exports/
+public/assets/
+
+# Tauri / Rust build artifacts
+src-tauri/target/
+src-tauri/gen/
+
+# Local runtime captures, audit output, and generated deliverables
+artifacts/
+stdout/
+.codex-artifacts/
+.codex-gameplay-audit/
+.codex-gameplay-general/
+*.log

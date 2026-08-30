@@ -1,0 +1,582 @@
+{
+  "version": 3,
+  "kind": "mix-project",
+  "guid": true,
+  "entities": [
+    {
+      "guid": "f050ad53-5a7e-4771-b130-bbebb0dd8550",
+      "originalId": 3,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "box",
+        "params": {
+          "hx": 500,
+          "hy": 0.5,
+          "hz": 500,
+          "dynamic": false,
+          "color": 2105389
+        }
+      },
+      "position": [
+        0.0005022616824135184,
+        -420880.6187500001,
+        0.0010015119332820177
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "68cb5e02-c271-4899-bbf2-33e7905b4ff4",
+      "originalId": 4,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "box",
+        "params": {
+          "hx": 8,
+          "hy": 0.05,
+          "hz": 150,
+          "dynamic": false,
+          "color": 1052688
+        }
+      },
+      "position": [
+        0.0018314090557396412,
+        -420863.9625000001,
+        0.03004087693989277
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "d5a97d9b-a3dd-4b40-9ddb-58139b4db911",
+      "originalId": 5,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "box",
+        "params": {
+          "hx": 3,
+          "hy": 0.08,
+          "hz": 150,
+          "dynamic": false,
+          "color": 6579300
+        }
+      },
+      "position": [
+        -10.976358413696289,
+        -420877.8375000001,
+        0.0003464142500888556
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "257fa848-a5c2-4d0e-9461-75d0c7b910d4",
+      "originalId": 6,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "box",
+        "params": {
+          "hx": 3,
+          "hy": 0.08,
+          "hz": 150,
+          "dynamic": false,
+          "color": 6579300
+        }
+      },
+      "position": [
+        10.970573425292969,
+        -420877.7750000001,
+        -0.002697303192690015
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "495f0169-f07b-4934-a878-00b714acac20",
+      "originalId": 7,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "box",
+        "params": {
+          "hx": 8,
+          "hy": 15,
+          "hz": 10,
+          "dynamic": false,
+          "color": 1978250
+        }
+      },
+      "position": [
+        -22,
+        -420864.6812500001,
+        -50
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "82e8bf00-8b9e-4d3e-a7df-936a78ddd3c3",
+      "originalId": 8,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "box",
+        "params": {
+          "hx": 8,
+          "hy": 20,
+          "hz": 12,
+          "dynamic": false,
+          "color": 3942460
+        }
+      },
+      "position": [
+        22.011926651000977,
+        -420859.6812500001,
+        -30
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "47c46cc3-263a-411b-a239-1718d15d9480",
+      "originalId": 9,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "box",
+        "params": {
+          "hx": 7,
+          "hy": 12,
+          "hz": 8,
+          "dynamic": false,
+          "color": 2631720
+        }
+      },
+      "position": [
+        -21,
+        -420867.6812500001,
+        -10
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "13dbcf2c-ca6e-4f17-8980-5571f1648ecc",
+      "originalId": 10,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "box",
+        "params": {
+          "hx": 8,
+          "hy": 18,
+          "hz": 14,
+          "dynamic": false,
+          "color": 5263440
+        }
+      },
+      "position": [
+        22.011903762817383,
+        -420861.6812500001,
+        20
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "60f1d424-0e22-41ab-8935-b8a6b3680823",
+      "originalId": 11,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "box",
+        "params": {
+          "hx": 9,
+          "hy": 25,
+          "hz": 15,
+          "dynamic": false,
+          "color": 1315860
+        }
+      },
+      "position": [
+        -23,
+        -420854.6812500001,
+        30
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "db004c0d-4ef1-4d41-a73e-82ca089310b5",
+      "originalId": 12,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "light",
+        "params": {
+          "lightType": "point",
+          "color": 16766073,
+          "intensity": 30,
+          "distance": 35,
+          "decay": 1.5
+        }
+      },
+      "position": [
+        -8,
+        -420874.7125000001,
+        -40
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "ca8fa1d2-76d2-405f-80b2-7aae502ea93e",
+      "originalId": 13,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "light",
+        "params": {
+          "lightType": "point",
+          "color": 16766073,
+          "intensity": 30,
+          "distance": 35,
+          "decay": 1.5
+        }
+      },
+      "position": [
+        8,
+        -420874.7125000001,
+        0
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "60ad8dcf-2531-421e-a99d-2192f640f2cc",
+      "originalId": 14,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "light",
+        "params": {
+          "lightType": "point",
+          "color": 16766073,
+          "intensity": 30,
+          "distance": 35,
+          "decay": 1.5
+        }
+      },
+      "position": [
+        -8,
+        -420874.7125000001,
+        40
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "066dfc40-4c18-47f8-a30f-992405482498",
+      "originalId": 15,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "box",
+        "params": {
+          "hx": 1.5,
+          "hy": 0.5,
+          "hz": 2.5,
+          "dynamic": true,
+          "color": 16724787
+        }
+      },
+      "position": [
+        1021.7952270507812,
+        -18761.863812500073,
+        -0.9005113840103149
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "95fd24d4-89fc-40be-8109-461fc479c4f1",
+      "originalId": 16,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "box",
+        "params": {
+          "hx": 1.5,
+          "hy": 0.5,
+          "hz": 2.5,
+          "dynamic": true,
+          "color": 2600544
+        }
+      },
+      "position": [
+        -13.81259822845459,
+        -25616.957562500073,
+        280.8832702636719
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "dynamic",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    },
+    {
+      "guid": "5007062c-8013-4df8-986d-321f5e504548",
+      "originalId": 17,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "character",
+        "params": {
+          "assetId": "opp"
+        }
+      },
+      "position": [
+        272.4638977050781,
+        -14.015224922180176,
+        -463.81393811035156
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1.2283263545923728,
+        1.2283263545923728,
+        1.2283263545923728
+      ],
+      "bodyType": "kinematic",
+      "additionalMass": 80,
+      "rootMotion": true,
+      "scriptSource": null
+    },
+    {
+      "guid": "790d9d22-7563-45c8-bf40-27a55f2104c5",
+      "originalId": 18,
+      "parentGuid": null,
+      "tags": [],
+      "blueprint": {
+        "kind": "extrusion",
+        "params": {
+          "svgText": "<svg width=\"10\" height=\"10\">\n  <path d=\"M 0 0 L 8 0 L 8 2 L 10 2 L 10 8 L 8 8 L 8 10 L 0 10 L 0 8 L -2 8 L -2 2 L 0 2 Z\" />\n</svg>",
+          "depth": 10,
+          "uvScale": 1,
+          "color": 11708094
+        }
+      },
+      "position": [
+        0,
+        5,
+        6.461538461538462
+      ],
+      "quaternion": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "bodyType": "fixed",
+      "additionalMass": 0,
+      "rootMotion": false,
+      "scriptSource": null
+    }
+  ],
+  "timeOfDay": 8,
+  "fogColor": "#0b0e14",
+  "fogDensity": 0,
+  "ambientIntensity": 0.15
+}

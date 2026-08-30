@@ -1,0 +1,236 @@
+{
+  "name": "locomotion_0622_000212",
+  "description": "Auto-generated locomotion scenario.",
+  "profile": "locomotion",
+  "startedAt": "2026-06-22T04:02:12.243Z",
+  "duration": 4.953,
+  "success": false,
+  "aborted": true,
+  "fps": {
+    "avg": 20.529018808211696,
+    "min": 4,
+    "max": 60.24096385540056,
+    "p99": 60.24096385540056,
+    "p1": 4,
+    "longStutterMs": 199.99999999999997,
+    "stutterEvents": 8
+  },
+  "collisions": 0,
+  "logs": [],
+  "anomalies": [
+    {
+      "kind": "low_fps",
+      "t": 0.5695999999977648,
+      "detail": "frame 100 ms",
+      "severity": "medium",
+      "duration": 0.10010000000000582
+    },
+    {
+      "kind": "low_fps",
+      "t": 0.9363000000007451,
+      "detail": "frame 250 ms",
+      "severity": "medium",
+      "duration": 0.25
+    },
+    {
+      "kind": "low_fps",
+      "t": 1.6275999999977648,
+      "detail": "frame 134 ms",
+      "severity": "medium",
+      "duration": 0.13360000000000583
+    },
+    {
+      "kind": "low_fps",
+      "t": 2.2605,
+      "detail": "frame 217 ms",
+      "severity": "medium",
+      "duration": 0.217
+    }
+  ],
+  "assertions": [],
+  "artifacts": {
+    "video": "",
+    "telemetry": "/sensorium/locomotion_0622_000212/telemetry.jsonl",
+    "keyframes": [
+      {
+        "t": 0.5695999999977648,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_0_57.png"
+      },
+      {
+        "t": 1.0768000000007452,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_1_08.png"
+      },
+      {
+        "t": 1.6275999999977648,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_1_63.png",
+        "note": "walk-forward"
+      },
+      {
+        "t": 2.02889999999851,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_2_03.png",
+        "note": "walk-forward"
+      },
+      {
+        "t": 2.565800000000745,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_2_57.png",
+        "note": "walk-forward"
+      },
+      {
+        "t": 3.006800000000745,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_3_01.png",
+        "note": "walk-forward"
+      },
+      {
+        "t": 3.553800000000745,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_3_55.png",
+        "note": "strafe-right"
+      },
+      {
+        "t": 4.00489999999851,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_4_00.png",
+        "note": "strafe-right"
+      }
+    ],
+    "report": "/sensorium/locomotion_0622_000212/report.json",
+    "contactSheet": "/sensorium/locomotion_0622_000212/contact-sheet.png"
+  },
+  "feel": {
+    "overall": 47,
+    "band": "rough",
+    "metrics": [
+      {
+        "key": "responsiveness",
+        "label": "Responsiveness",
+        "raw": 47.3,
+        "unit": "ms",
+        "score": 100,
+        "note": "median input→motion 47 ms across 1 inputs, 1 produced no motion",
+        "samples": 1
+      },
+      {
+        "key": "snappiness",
+        "label": "Snappiness",
+        "raw": 7.84,
+        "unit": "m/s²",
+        "score": 18,
+        "note": "peak acceleration 7.8 m/s² after input",
+        "samples": 2
+      },
+      {
+        "key": "floatiness",
+        "label": "Floatiness",
+        "raw": 1.4,
+        "unit": "s",
+        "score": 68,
+        "note": "~1.40 s to coast to a stop (stylistic, not pass/fail)",
+        "samples": 5
+      },
+      {
+        "key": "stability",
+        "label": "Stability",
+        "raw": 0.89,
+        "unit": "CoV",
+        "score": 40,
+        "note": "speed CoV 0.89, 1.2 jitter-flips/s",
+        "samples": 14
+      },
+      {
+        "key": "cameraSmooth",
+        "label": "Camera Smoothness",
+        "raw": 146.06,
+        "unit": "rad/s²",
+        "score": 40,
+        "note": "angular jerk 146.1, 0.2 snaps/s",
+        "samples": 46
+      },
+      {
+        "key": "framePacing",
+        "label": "Frame Pacing",
+        "raw": 0.79,
+        "unit": "CoV",
+        "score": 9,
+        "note": "dt CoV 0.79, worst frame 250 ms",
+        "samples": 46
+      },
+      {
+        "key": "weight",
+        "label": "Weight",
+        "raw": 1005.1,
+        "unit": "ms",
+        "score": 100,
+        "note": "~1005 ms to reach cruising speed (stylistic)",
+        "samples": 1
+      },
+      {
+        "key": "grip",
+        "label": "Grip",
+        "raw": 0,
+        "unit": "°",
+        "score": 50,
+        "note": "not enough cornering to measure slip",
+        "samples": 3
+      }
+    ],
+    "responsivenessMs": 47.3,
+    "topSpeed": 4.7289319896000865,
+    "peakAccel": 4.51851243233829,
+    "summary": "The locomotion test feels rough (47/100), floaty, topping out at 4.7 m/s. Responsiveness is the strong point (100). Frame Pacing is weakest (9) — dt CoV 0.79, worst frame 250 ms."
+  },
+  "analysis": {
+    "system": "You are a senior gameplay QA engineer and game-feel specialist. You review recorded playthroughs and report concrete, timestamped, prioritized findings a developer can act on. You are given engine telemetry alongside the footage; trust the video for anything visual and treat telemetry as corroborating evidence.",
+    "instructions": "You are reviewing a recorded playthrough of a 3D game built in the MIX Engine.\n\n# Test: locomotion_0622_000212  (profile: locomotion)\nDescription: Auto-generated locomotion scenario.\n\nGame under test: MIX Engine demo scene. Locomotion test: walking, strafing, running and turning. Judge ground contact, foot sliding, turn responsiveness, and whether the character starts/stops where the input says.\n\n# What the engine measured (corroborating evidence)\n- Duration: 5.0s\n- Average FPS: 20.5 (min 4.0, p1 4.0)\n- Longest stutter (<30 fps): 200ms over 8 event(s)\n\n# How it FELT (kinesthetic telemetry — the engine's own read)\n- Overall feel: 47/100 (rough). The locomotion test feels rough (47/100), floaty, topping out at 4.7 m/s. Responsiveness is the strong point (100). Frame Pacing is weakest (9) — dt CoV 0.79, worst frame 250 ms.\n- Responsiveness: 47ms input→motion. Top speed 4.7 m/s, peak accel 4.5 m/s².\n  · Responsiveness: 100/100 — median input→motion 47 ms across 1 inputs, 1 produced no motion\n  · Snappiness: 18/100 — peak acceleration 7.8 m/s² after input\n  · Floatiness: 68/100 — ~1.40 s to coast to a stop (stylistic, not pass/fail)\n  · Stability: 40/100 — speed CoV 0.89, 1.2 jitter-flips/s\n  · Camera Smoothness: 40/100 — angular jerk 146.1, 0.2 snaps/s\n  · Frame Pacing: 9/100 — dt CoV 0.79, worst frame 250 ms\n  · Weight: 100/100 — ~1005 ms to reach cruising speed (stylistic)\n  · Grip: 50/100 — not enough cornering to measure slip\nCross-check these against the video: if your eyes disagree with a number, say so and trust your eyes.\n\n# Auto-detected anomalies (may be noisy — confirm against the video)\n- [medium] t=0.57s low_fps: frame 100 ms\n- [medium] t=0.94s low_fps: frame 250 ms\n- [medium] t=1.63s low_fps: frame 134 ms\n- [medium] t=2.26s low_fps: frame 217 ms\n\n# Your job — evaluate GAME FEEL\nWatch the footage and report on responsiveness, movement/physics, camera, animation, collision feedback/juice, pacing, and visual quality. Be specific, cite timestamps, and prioritize what a player would actually notice. Where the telemetry above flags something, confirm or refute it from the video.\n\nReturn the structured rubric below.",
+    "frames": [
+      {
+        "t": 0.5695999999977648,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_0_57.png"
+      },
+      {
+        "t": 1.0768000000007452,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_1_08.png"
+      },
+      {
+        "t": 1.6275999999977648,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_1_63.png",
+        "caption": "walk-forward"
+      },
+      {
+        "t": 2.02889999999851,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_2_03.png",
+        "caption": "walk-forward"
+      },
+      {
+        "t": 2.565800000000745,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_2_57.png",
+        "caption": "walk-forward"
+      },
+      {
+        "t": 3.006800000000745,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_3_01.png",
+        "caption": "walk-forward"
+      },
+      {
+        "t": 3.553800000000745,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_3_55.png",
+        "caption": "strafe-right"
+      },
+      {
+        "t": 4.00489999999851,
+        "path": "/sensorium/locomotion_0622_000212/keyframes/frame_4_00.png",
+        "caption": "strafe-right"
+      }
+    ],
+    "contactSheet": "/sensorium/locomotion_0622_000212/contact-sheet.png",
+    "rubric": [
+      "VERDICT: pass | minor_issues | major_issues",
+      "FEEL_SCORE: 1-10 (your own, after watching — compare to the engine's number and explain any gap)",
+      "ISSUES: bullet list of concrete problems with timestamps (e.g. \"0:04 — vehicle slides on turn, no steering response for 0.3s\")",
+      "SUGGESTIONS: concrete fixes ranked by impact",
+      "POSITIVES: 1-3 things working well"
+    ]
+  },
+  "visionPrompt": "You are reviewing a recorded playthrough of a 3D game built in the MIX Engine.\n\n# Test: locomotion_0622_000212  (profile: locomotion)\nDescription: Auto-generated locomotion scenario.\n\nGame under test: MIX Engine demo scene. Locomotion test: walking, strafing, running and turning. Judge ground contact, foot sliding, turn responsiveness, and whether the character starts/stops where the input says.\n\n# What the engine measured (corroborating evidence)\n- Duration: 5.0s\n- Average FPS: 20.5 (min 4.0, p1 4.0)\n- Longest stutter (<30 fps): 200ms over 8 event(s)\n\n# How it FELT (kinesthetic telemetry — the engine's own read)\n- Overall feel: 47/100 (rough). The locomotion test feels rough (47/100), floaty, topping out at 4.7 m/s. Responsiveness is the strong point (100). Frame Pacing is weakest (9) — dt CoV 0.79, worst frame 250 ms.\n- Responsiveness: 47ms input→motion. Top speed 4.7 m/s, peak accel 4.5 m/s².\n  · Responsiveness: 100/100 — median input→motion 47 ms across 1 inputs, 1 produced no motion\n  · Snappiness: 18/100 — peak acceleration 7.8 m/s² after input\n  · Floatiness: 68/100 — ~1.40 s to coast to a stop (stylistic, not pass/fail)\n  · Stability: 40/100 — speed CoV 0.89, 1.2 jitter-flips/s\n  · Camera Smoothness: 40/100 — angular jerk 146.1, 0.2 snaps/s\n  · Frame Pacing: 9/100 — dt CoV 0.79, worst frame 250 ms\n  · Weight: 100/100 — ~1005 ms to reach cruising speed (stylistic)\n  · Grip: 50/100 — not enough cornering to measure slip\nCross-check these against the video: if your eyes disagree with a number, say so and trust your eyes.\n\n# Auto-detected anomalies (may be noisy — confirm against the video)\n- [medium] t=0.57s low_fps: frame 100 ms\n- [medium] t=0.94s low_fps: frame 250 ms\n- [medium] t=1.63s low_fps: frame 134 ms\n- [medium] t=2.26s low_fps: frame 217 ms\n\n# Your job — evaluate GAME FEEL\nWatch the footage and report on responsiveness, movement/physics, camera, animation, collision feedback/juice, pacing, and visual quality. Be specific, cite timestamps, and prioritize what a player would actually notice. Where the telemetry above flags something, confirm or refute it from the video.\n\nReturn the structured rubric below.",
+  "followUpPrompts": [
+    "Profile the stutter: identify the most expensive visual element in the affected frame.",
+    "Feel weak point: \"Frame Pacing\" scored 9. Re-run a focused locomotion scenario isolating it."
+  ]
+}

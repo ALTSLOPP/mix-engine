@@ -1,0 +1,130 @@
+{
+  "id": "crestbound-starter",
+  "version": 1,
+  "sourceProject": "crestbound",
+  "licenseStatus": "unverified",
+  "licenseNote": "Imported from Crestbound project for MIX Engine reusable environment and stylized town workflows. Verify rights before redistribution.",
+  "assets": [
+    {
+      "id": "crest_house_route_starter",
+      "name": "Modern JRPG Route Starter House",
+      "kind": "model",
+      "type": "building",
+      "source": "Assets/Game/Art/Environment/City/ModernJRPG/modern-jrpg-route-starter.fbx",
+      "path": "/assets/crestbound-starter/models/buildings/modern-jrpg-route-starter.fbx",
+      "targetSize": 18,
+      "bytes": 818908,
+      "sha256": "c6ec69970115a4d9d711f1bed432268a46f9d8c697d31cc95c4d247a5f84c6c0"
+    },
+    {
+      "id": "crest_house_sakura_family",
+      "name": "Modern JRPG Sakura Family House",
+      "kind": "model",
+      "type": "building",
+      "source": "Assets/Game/Art/Environment/City/ModernJRPG/modern-jrpg-sakura-family.fbx",
+      "path": "/assets/crestbound-starter/models/buildings/modern-jrpg-sakura-family.fbx",
+      "targetSize": 20,
+      "bytes": 2533820,
+      "sha256": "03733e26f3810bb805247b00e8e9129a208589383a8157962df23f18ec97d41c"
+    },
+    {
+      "id": "crest_house_balcony_blue",
+      "name": "Modern JRPG Balcony Blue House",
+      "kind": "model",
+      "type": "building",
+      "source": "Assets/Game/Art/Environment/City/ModernJRPG/modern-jrpg-balcony-blue.fbx",
+      "path": "/assets/crestbound-starter/models/buildings/modern-jrpg-balcony-blue.fbx",
+      "targetSize": 16,
+      "bytes": 2727740,
+      "sha256": "dcdf1ed7dafefcadd6e8db65d79e52252dd694a1b7704e069e01dab5db9e136b"
+    },
+    {
+      "id": "crest_tree_alder",
+      "name": "Anime Nature Alder Tree",
+      "kind": "model",
+      "type": "prop",
+      "source": "Assets/Game/Art/Environment/Biomes/AnimeNature/Imported/Meshes/BasicNature/Meshes/SM_BN_Trees_Alder_01.fbx",
+      "path": "/assets/crestbound-starter/models/nature/SM_BN_Trees_Alder_01.fbx",
+      "targetSize": 8.5,
+      "bytes": 901504,
+      "sha256": "af839419b5d28826fcefa777d9ff154842eda794429b6a5af785bf72c30ed9af"
+    },
+    {
+      "id": "crest_tree_birch",
+      "name": "Anime Nature Birch Tree",
+      "kind": "model",
+      "type": "prop",
+      "source": "Assets/Game/Art/Environment/Biomes/AnimeNature/Imported/Meshes/BasicNature/Meshes/SM_BN_Trees_Birch_01.fbx",
+      "path": "/assets/crestbound-starter/models/nature/SM_BN_Trees_Birch_01.fbx",
+      "targetSize": 7,
+      "bytes": 431360,
+      "sha256": "62e3520953ed8c2f151bc89535e9a5de2a8981a0d3a54ddf22fce6f6672130b5"
+    },
+    {
+      "id": "crest_tree_fir",
+      "name": "Anime Nature Fir Tree",
+      "kind": "model",
+      "type": "prop",
+      "source": "Assets/Game/Art/Environment/Biomes/AnimeNature/Imported/Meshes/BasicNature/Meshes/SM_BN_Trees_Fir_01.fbx",
+      "path": "/assets/crestbound-starter/models/nature/SM_BN_Trees_Fir_01.fbx",
+      "targetSize": 9,
+      "bytes": 1905408,
+      "sha256": "1b4e70a385404d5da397f132ff5220274f9171ae573ba214c8b02ba3ee26d99e"
+    },
+    {
+      "id": "crest_foliage_bush",
+      "name": "Anime Nature Bush",
+      "kind": "model",
+      "type": "prop",
+      "source": "Assets/Game/Art/Environment/Biomes/AnimeNature/Imported/Meshes/BasicNature/Meshes/SM_Fol_Bush_01.fbx",
+      "path": "/assets/crestbound-starter/models/nature/SM_Fol_Bush_01.fbx",
+      "targetSize": 2,
+      "bytes": 481696,
+      "sha256": "f04f4fb511c5909018fb5a57f6c1ae6fa58c2141704d7c8475e7ae7b6be6d950"
+    },
+    {
+      "id": "crest_foliage_flower",
+      "name": "Anime Nature Flower",
+      "kind": "model",
+      "type": "prop",
+      "source": "Assets/Game/Art/Environment/Biomes/AnimeNature/Imported/Meshes/BasicNature/Meshes/SM_Fol_Flower_A_01.fbx",
+      "path": "/assets/crestbound-starter/models/nature/SM_Fol_Flower_A_01.fbx",
+      "targetSize": 0.8,
+      "bytes": 285344,
+      "sha256": "17abf4677a9681391f73c9789a7462a368b0c6a2f3f6169e01257c26678e4c2b"
+    },
+    {
+      "id": "crest_foliage_grass",
+      "name": "Anime Nature Grass Patch",
+      "kind": "model",
+      "type": "prop",
+      "source": "Assets/Game/Art/Environment/Biomes/AnimeNature/Imported/Meshes/BasicNature/Meshes/SM_Fol_Grass_01.fbx",
+      "path": "/assets/crestbound-starter/models/nature/SM_Fol_Grass_01.fbx",
+      "targetSize": 1.2,
+      "bytes": 100192,
+      "sha256": "ed095d4cea20cb1c93fc232b70a18dbcb891b0077e533120c035cff3dd749f32"
+    },
+    {
+      "id": "crest_rocks_ghibli",
+      "name": "Ghibli Style Rocks",
+      "kind": "model",
+      "type": "prop",
+      "source": "Assets/Game/Art/Environment/Foliage/Rocks/Source/ghibli_style_rocks.glb",
+      "path": "/assets/crestbound-starter/models/rocks/ghibli_style_rocks.glb",
+      "targetSize": 4.5,
+      "bytes": 4460792,
+      "sha256": "aab70f0a8005d1fe1831c79418cde3cb80d594c1ae3abfa99b7929b31e01d807"
+    },
+    {
+      "id": "crest_npc_female_tech",
+      "name": "Tech Girl NPC",
+      "kind": "model",
+      "type": "character",
+      "source": "Assets/Game/Art/Characters/CityNPCs/Imported/NPCs/Female/BesstTopologyTechGirl/texture_pbr_20250901.png",
+      "path": "/assets/crestbound-starter/textures/npc_female_tech.png",
+      "targetSize": 1.7,
+      "bytes": 11936282,
+      "sha256": "e63d0a2b030a13b7c45e2995c616d9d2c0e69ddbf17c2f7959e0f985e6c9bad4"
+    }
+  ]
+}

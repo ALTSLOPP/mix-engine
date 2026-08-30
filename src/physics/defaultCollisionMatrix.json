@@ -1,0 +1,54 @@
+{
+  "layers": [
+    {
+      "name": "Player",
+      "id": 0,
+      "collidesWith": ["StaticTerrain", "Enemy", "Projectile", "Trigger", "Debris", "Vehicle", "Ragdoll", "Interactable"]
+    },
+    {
+      "name": "Enemy",
+      "id": 1,
+      "collidesWith": ["StaticTerrain", "Player", "Enemy", "Projectile", "Trigger", "Debris", "Vehicle", "Ragdoll", "Interactable"]
+    },
+    {
+      "name": "Projectile",
+      "id": 2,
+      "collidesWith": ["StaticTerrain", "Player", "Enemy", "Vehicle", "Ragdoll"]
+    },
+    {
+      "name": "Trigger",
+      "id": 3,
+      "collidesWith": ["Player", "Enemy", "Vehicle"]
+    },
+    {
+      "name": "StaticTerrain",
+      "id": 4,
+      "collidesWith": ["Player", "Enemy", "Projectile", "Debris", "Vehicle", "Ragdoll"]
+    },
+    {
+      "name": "Debris",
+      "id": 5,
+      "collidesWith": ["StaticTerrain", "Player", "Enemy", "Debris", "Vehicle", "Ragdoll"]
+    },
+    {
+      "name": "Vehicle",
+      "id": 6,
+      "collidesWith": ["StaticTerrain", "Player", "Enemy", "Projectile", "Trigger", "Debris", "Vehicle", "Ragdoll"]
+    },
+    {
+      "name": "Ragdoll",
+      "id": 7,
+      "collidesWith": ["StaticTerrain", "Player", "Enemy", "Projectile", "Debris", "Vehicle", "Ragdoll"]
+    },
+    {
+      "name": "Interactable",
+      "id": 8,
+      "collidesWith": ["Player", "Enemy"]
+    },
+    {
+      "name": "CameraBlocker",
+      "id": 9,
+      "collidesWith": ["StaticTerrain"]
+    }
+  ]
+}

@@ -1,0 +1,266 @@
+{
+  "id": "fps-starter",
+  "version": 1,
+  "sourceProject": "glb-migration-project",
+  "licenseStatus": "unverified",
+  "licenseNote": "No asset license or redistribution grant was found in the source project. Imported at the project owner request for local bundled content; verify rights before distributing engine or game builds. Original filenames are retained in source metadata; no new license is asserted.",
+  "assets": [
+    {
+      "id": "fps_ak47",
+      "name": "AK47 Rifle",
+      "kind": "model",
+      "source": "GUNS/AK47 Rifle/base_basic_pbr.glb",
+      "path": "/assets/fps-starter/models/ak47.glb",
+      "targetSize": 0.88,
+      "bytes": 6893736,
+      "sha256": "a2d9036c5ccd43f07e730abf6e523c1b1d28412d5272d658753b5e33595d26eb"
+    },
+    {
+      "id": "fps_mp4",
+      "name": "MP4 Rifle",
+      "kind": "model",
+      "source": "GUNS/MP4 Rifle/base_basic_pbr.glb",
+      "path": "/assets/fps-starter/models/mp4.glb",
+      "targetSize": 0.75,
+      "bytes": 8211952,
+      "sha256": "54f20cd15974b99efab1355dff82b992c88c5e5e982fd0d68745dc5dacb6f218"
+    },
+    {
+      "id": "fps_draco",
+      "name": "DRACO SMG",
+      "kind": "model",
+      "source": "GUNS/DRACO/base_basic_pbr.glb",
+      "path": "/assets/fps-starter/models/draco.glb",
+      "targetSize": 0.5,
+      "bytes": 6864172,
+      "sha256": "d1f35d828b181c1d665eeea0dad7d40a78f99dd917ffa76640f774f1a43c8c40"
+    },
+    {
+      "id": "fps_hipoint",
+      "name": "Hi Point Pistol",
+      "kind": "model",
+      "source": "GUNS/Hi point pistol/base_basic_pbr.glb",
+      "path": "/assets/fps-starter/models/hipoint.glb",
+      "targetSize": 0.22,
+      "bytes": 8920580,
+      "sha256": "e7a5779bf13897b81ed6cbccb316b39577734dcc00e229a561aaabc872e17f66"
+    },
+    {
+      "id": "fps_grenade",
+      "name": "Frag Grenade",
+      "kind": "model",
+      "source": "GUNS/grenade/base_basic_pbr.glb",
+      "path": "/assets/fps-starter/models/grenade.glb",
+      "targetSize": 0.12,
+      "bytes": 9181920,
+      "sha256": "eb6c94c2c0ff377665febc4ea8b0f7e92c757d109bd327c99a79ffefa7229088"
+    },
+    {
+      "id": "fps_grenade_throw",
+      "name": "Grenade Throw",
+      "kind": "animation",
+      "source": "grenadethrow/grenade throw.glb",
+      "path": "/assets/fps-starter/animations/grenade-throw.glb",
+      "bytes": 102392,
+      "sha256": "8236d9fcea63941998b4fa5526a9648506dfa488bf9b8784ffbadcf7812b3d1a"
+    },
+    {
+      "id": "fps_ak47_fire",
+      "name": "AK47 Fire",
+      "kind": "audio",
+      "source": "gun sounds/Assautl rifles/Ak47 Cod Shooting Sound.wav",
+      "path": "/assets/fps-starter/audio/ak47-fire.wav",
+      "bytes": 414888,
+      "sha256": "dd03412d5d2930830e46f895fa1c7b2ec0c0bee1a2719266a78ec45b9b4a5313"
+    },
+    {
+      "id": "fps_ak47_single",
+      "name": "AK47 Single Shot",
+      "kind": "audio",
+      "source": "gun sounds/Assautl rifles/Single Ak47 Shot Soundaaa Professional Sound For Gaming.wav",
+      "path": "/assets/fps-starter/audio/ak47-single.wav",
+      "bytes": 430248,
+      "sha256": "f42b0a01bb59bbfce1c37cfa520a9c814333233c68d288de80aebacc6d331b77"
+    },
+    {
+      "id": "fps_rifle_fire",
+      "name": "Assault Rifle Fire",
+      "kind": "audio",
+      "source": "gun sounds/Assautl rifles/ASSAULT RIFLEGunshot.wav",
+      "path": "/assets/fps-starter/audio/rifle-fire.wav",
+      "bytes": 384168,
+      "sha256": "1eb251c57ce9d6c2206abb78ac7df49f062f5196a36bfe7a41c35d645ba74c11"
+    },
+    {
+      "id": "fps_mp4_fire",
+      "name": "MP4 Fire",
+      "kind": "audio",
+      "source": "gun sounds/light smg (Dracos)/Mp4 Gun Sound Shooting.wav",
+      "path": "/assets/fps-starter/audio/mp4-fire.wav",
+      "bytes": 407208,
+      "sha256": "aeb1115b666b1ba88c11ca4b4146e60e0b44d34d9b8250030235d788719961d2"
+    },
+    {
+      "id": "fps_draco_fire",
+      "name": "DRACO Fire",
+      "kind": "audio",
+      "source": "gun sounds/light smg (Dracos)/Draco Gun Sound Shooting.wav",
+      "path": "/assets/fps-starter/audio/draco-fire.wav",
+      "bytes": 560808,
+      "sha256": "6091a09f97ead944fa832315e3ea4c311a5099f0496003fb8552a2312c06213f"
+    },
+    {
+      "id": "fps_pistol_fire",
+      "name": "Pistol Fire",
+      "kind": "audio",
+      "source": "gun sounds/hi-point/Pistol Shooting Sound Effect.wav",
+      "path": "/assets/fps-starter/audio/pistol-fire.wav",
+      "bytes": 407208,
+      "sha256": "0d3883a427b824016f06dc61954478f67393ba49fa43a8e76e4e3479d9e26a08"
+    },
+    {
+      "id": "fps_shotgun_fire",
+      "name": "Shotgun Fire",
+      "kind": "audio",
+      "source": "gun sounds/shotguns/Shotgun Sound.wav",
+      "path": "/assets/fps-starter/audio/shotgun-fire.wav",
+      "bytes": 384168,
+      "sha256": "722bdd07b490a077f85b8d090e798665459c5453c59fdc9feb260ab76b8843c8"
+    },
+    {
+      "id": "fps_shotgun_blast",
+      "name": "Shotgun Blast",
+      "kind": "audio",
+      "source": "gun sounds/shotguns/level 1Powerful Single Shotgun Blast.wav",
+      "path": "/assets/fps-starter/audio/shotgun-blast.wav",
+      "bytes": 491688,
+      "sha256": "2c35357f86820a194ed79253ab936762fc4700b9bb456924e200ee876f4a1fd0"
+    },
+    {
+      "id": "fps_sniper_fire",
+      "name": "Sniper Fire",
+      "kind": "audio",
+      "source": "gun sounds/snipers/Sniper Rifle Sound Shooting.wav",
+      "path": "/assets/fps-starter/audio/sniper-fire.wav",
+      "bytes": 384168,
+      "sha256": "bc22177a63794a3f175301ea6c5602ac003f34a801d5c494ac341c1563f9755b"
+    },
+    {
+      "id": "fps_sniper_fire_alt",
+      "name": "Sniper Fire Alt",
+      "kind": "audio",
+      "source": "gun sounds/snipers/Sniper Rifle Sound Shooting 2.wav",
+      "path": "/assets/fps-starter/audio/sniper-fire-alt.wav",
+      "bytes": 384168,
+      "sha256": "bc22177a63794a3f175301ea6c5602ac003f34a801d5c494ac341c1563f9755b"
+    },
+    {
+      "id": "fps_explosion",
+      "name": "Grenade Explosion",
+      "kind": "audio",
+      "source": "gun sounds/EXPLOSIONS/Explosion (Edit).wav",
+      "path": "/assets/fps-starter/audio/explosion.wav",
+      "bytes": 721998,
+      "sha256": "b4654f21219b6d04299ca45a29380dfa61cda751eb149d225d3e6a065c774d59"
+    },
+    {
+      "id": "fps_rifle_fire_anim",
+      "name": "Rifle Firing",
+      "kind": "animation",
+      "source": "Rifle shooting animations/firing rifle.glb",
+      "path": "/assets/fps-starter/animations/rifle-fire.glb",
+      "bytes": 60600,
+      "sha256": "6635a5f7d4d143a548d14c0aa9502be76539bdaa6afd3c30eebeaa904eb90252"
+    },
+    {
+      "id": "fps_rifle_reload_anim",
+      "name": "Rifle Reload",
+      "kind": "animation",
+      "source": "Rifle shooting animations/Reload.glb",
+      "path": "/assets/fps-starter/animations/rifle-reload.glb",
+      "bytes": 136372,
+      "sha256": "724e99134bdba9051ee5cf542bc6dab1c52826cc4e36fd81f33edac052c4ba25"
+    },
+    {
+      "id": "fps_rifle_aim_idle_anim",
+      "name": "Rifle Aim Idle",
+      "kind": "animation",
+      "source": "Rifle shooting animations/rifle aiming idle.glb",
+      "path": "/assets/fps-starter/animations/rifle-aim-idle.glb",
+      "bytes": 109848,
+      "sha256": "6f6c32fa5cd327bace7774e61507c9ca879a68b7e703639a4afdcace09bc7d48"
+    },
+    {
+      "id": "fps_rifle_run_anim",
+      "name": "Rifle Run",
+      "kind": "animation",
+      "source": "Rifle shooting animations/rifle run.glb",
+      "path": "/assets/fps-starter/animations/rifle-run.glb",
+      "bytes": 50412,
+      "sha256": "7ae1d9bc681c6a382e0e1fb07cf7cdc22e72baa8b050e27f7e7bbdf151200d01"
+    },
+    {
+      "id": "fps_rifle_walk_anim",
+      "name": "Rifle Walk",
+      "kind": "animation",
+      "source": "Rifle shooting animations/walking.glb",
+      "path": "/assets/fps-starter/animations/rifle-walk.glb",
+      "bytes": 66540,
+      "sha256": "01c2c2737eaed3b43950a3f37e575457aa9b1c703afc8c956a9520f370a38932"
+    },
+    {
+      "id": "fps_rifle_strafe_anim",
+      "name": "Rifle Strafe",
+      "kind": "animation",
+      "source": "Rifle shooting animations/strafe.glb",
+      "path": "/assets/fps-starter/animations/rifle-strafe.glb",
+      "bytes": 48716,
+      "sha256": "139e64d312fa3aea37c4eb8d333c44de8f79811b973b0c76c9491a7244eda801"
+    },
+    {
+      "id": "fps_pistol_idle_anim",
+      "name": "Pistol Idle",
+      "kind": "animation",
+      "source": "Pistol Shooting Animations/pistol idle.glb",
+      "path": "/assets/fps-starter/animations/pistol-idle.glb",
+      "bytes": 63200,
+      "sha256": "41bb335ad58c055ddc925de415b4b26e1177a4f387ed6078d5c7654e125b0c98"
+    },
+    {
+      "id": "fps_pistol_walk_anim",
+      "name": "Pistol Walk",
+      "kind": "animation",
+      "source": "Pistol Shooting Animations/pistol walk.glb",
+      "path": "/assets/fps-starter/animations/pistol-walk.glb",
+      "bytes": 52288,
+      "sha256": "ffa5d6912c5b3f12864213b98694ad988c7cfaee0dc3a1c1b9891acd508b6213"
+    },
+    {
+      "id": "fps_pistol_run_anim",
+      "name": "Pistol Run",
+      "kind": "animation",
+      "source": "Pistol Shooting Animations/pistol run.glb",
+      "path": "/assets/fps-starter/animations/pistol-run.glb",
+      "bytes": 44624,
+      "sha256": "7bf24815e85a4e9087059fde234753abd9b22a5e0983bdbf39649f4b989a7782"
+    },
+    {
+      "id": "fps_pistol_reload_anim",
+      "name": "Pistol Reload",
+      "kind": "animation",
+      "source": "Pistol Shooting Animations/Reload.glb",
+      "path": "/assets/fps-starter/animations/pistol-reload.glb",
+      "bytes": 136372,
+      "sha256": "724e99134bdba9051ee5cf542bc6dab1c52826cc4e36fd81f33edac052c4ba25"
+    },
+    {
+      "id": "fps_dying_anim",
+      "name": "Shooter Death",
+      "kind": "animation",
+      "source": "DYING/Dying.glb",
+      "path": "/assets/fps-starter/animations/dying.glb",
+      "bytes": 120256,
+      "sha256": "21b78b1987cf9bed468e8d28669933bd2812fb342a0ac92e52cb33160e437997"
+    }
+  ]
+}
