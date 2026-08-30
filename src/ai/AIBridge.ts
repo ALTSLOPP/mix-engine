@@ -1006,6 +1006,8 @@ export interface AIBridgeDeps {
   gpuParticles?: import('../vfx/GpuParticleSystem').GpuParticleSystem;
   prefabs?: import('../engine/PrefabManager').PrefabManager;
   profiler?: import('../diagnostics/FrameProfiler').FrameProfiler;
+  qualityScaler?: import('../rendering/QualityScaler').QualityScaler;
+  assetCache?: import('../animation/AssetCache').AssetCache;
   selection?: import('../editor/SelectionManager').SelectionManager;
   selectionChanged?: () => void;
   gameplayFeatures?: import('../features/gameplay/GameplayFeatureManager').GameplayFeatureManager;
@@ -1132,6 +1134,8 @@ export class AIBridge {
       gpuParticles: deps.gpuParticles,
       prefabs: deps.prefabs,
       profiler: deps.profiler,
+      qualityScaler: deps.qualityScaler,
+      assetCache: deps.assetCache,
       selection: deps.selection,
       selectionChanged: deps.selectionChanged,
       gameplayFeatures: deps.gameplayFeatures,

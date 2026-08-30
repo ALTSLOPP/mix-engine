@@ -16,6 +16,9 @@ export interface SceneRenderStats {
   rcasSharpness?: number;
   adaptiveQualityLevel?: number;
   drawCalls?: number;
+  /** Total triangles submitted across all passes (shadows, prepass, scene, post, upscaler). */
+  submittedTriangles?: number;
+  /** Triangles rendered in the main scene pass. */
   visibleTriangles?: number;
   totalGeometries?: number;
   totalTextures?: number;
@@ -37,6 +40,8 @@ export interface BudgetRecommendation {
 
 export interface PerformanceExplanation {
   status: 'GOOD' | 'WARNING' | 'ERROR';
+  frameHealth: 'GOOD' | 'WARNING' | 'CRITICAL';
+  budgetRisk: 'LOW' | 'MEDIUM' | 'HIGH';
   summary: string;
   targetFps: number;
   currentFps: number;
@@ -49,8 +54,13 @@ export interface PerformanceExplanation {
 
 export class PerformanceExplainer {
   static explain(stats: SceneRenderStats, targetFps = 60): PerformanceExplanation {
-    const fps = stats.fps ?? 60;
-    const currentFrameMs = stats.frameTimeMs ?? (fps > 0 ? 1000 / fps : 16.6);
+    if (stats.fps === undefined || stats.fps === null || !Number.isFinite(stats.fps) || stats.fps <= 0) {
+      throw new Error('FRAME_TIMING_UNAVAILABLE: No measured frame rate or frame timing is available.');
+    }
+    const fps = stats.fps;
+    const currentFrameMs = stats.frameTimeMs !== undefined && Number.isFinite(stats.frameTimeMs) && stats.frameTimeMs > 0
+      ? stats.frameTimeMs
+      : 1000 / fps;
     const frameBudgetMs = 1000 / targetFps;
 
     const largestCosts: string[] = [];
@@ -74,13 +84,13 @@ export class PerformanceExplainer {
       });
     }
 
-    // 2. Triangles
-    const tris = stats.visibleTriangles ?? 0;
+    // 2. Triangles (evaluate submitted throughput and scene visibility)
+    const tris = stats.submittedTriangles ?? stats.visibleTriangles ?? 0;
     if (tris > 1500000) {
       largestCosts.push(`High triangle throughput (${tris.toLocaleString()} submitted triangles)`);
       recommendations.push({
         severity: 'HIGH',
-        cause: `${(tris / 1000000).toFixed(2)}M triangles submitted to GPU`,
+        cause: `${(tris / 1000000).toFixed(2)}M triangles submitted to GPU across passes`,
         recommendation: 'Generate LOD1/LOD2 variants for dense background meshes and characters',
       });
     }
@@ -91,7 +101,7 @@ export class PerformanceExplainer {
       largestCosts.push(`Multiple shadow-casting lights (${shadows} active shadow maps)`);
       recommendations.push({
         severity: 'HIGH',
-        cause: `${shadows} dynamic shadow casters running cascades`,
+        cause: `${shadows} dynamic shadow casters running cascades/shadow passes`,
         recommendation: 'Disable shadow casting on local point/spot lights; use single sun directional shadow',
       });
     }
@@ -142,21 +152,40 @@ export class PerformanceExplainer {
       }
     }
 
+    // Decouple Frame Health from Budget Complexity Risk
+    let frameHealth: 'GOOD' | 'WARNING' | 'CRITICAL' = 'GOOD';
+    if (fps < targetFps * 0.75) {
+      frameHealth = 'CRITICAL';
+    } else if (fps < targetFps * 0.95) {
+      frameHealth = 'WARNING';
+    }
+
+    let budgetRisk: 'LOW' | 'MEDIUM' | 'HIGH' = 'LOW';
+    if (recommendations.some(r => r.severity === 'HIGH')) {
+      budgetRisk = 'HIGH';
+    } else if (recommendations.some(r => r.severity === 'MEDIUM')) {
+      budgetRisk = 'MEDIUM';
+    }
+
     let status: 'GOOD' | 'WARNING' | 'ERROR' = 'GOOD';
-    if (fps < targetFps * 0.6 || recommendations.some(r => r.severity === 'HIGH')) {
+    if (frameHealth === 'CRITICAL') {
       status = 'ERROR';
-    } else if (fps < targetFps * 0.9 || recommendations.some(r => r.severity === 'MEDIUM')) {
+    } else if (frameHealth === 'WARNING' || budgetRisk === 'HIGH') {
       status = 'WARNING';
     }
 
-    const summary = status === 'GOOD'
-      ? `[GOOD] Performance is healthy: holding ${fps.toFixed(1)} FPS against ${targetFps} FPS target.`
-      : status === 'WARNING'
-      ? `[WARNING] Performance under slight pressure: ${fps.toFixed(1)} FPS (${(frameBudgetMs - currentFrameMs).toFixed(1)}ms delta).`
-      : `[ERROR] Significant frame drops: ${fps.toFixed(1)} FPS (exceeds ${targetFps} FPS budget by ${(currentFrameMs - frameBudgetMs).toFixed(1)}ms).`;
+    const summary = frameHealth === 'GOOD'
+      ? budgetRisk === 'HIGH'
+        ? `[GOOD] Frame pacing is holding ${fps.toFixed(1)} FPS against ${targetFps} FPS target, but scene complexity risk is HIGH.`
+        : `[GOOD] Performance is healthy: holding ${fps.toFixed(1)} FPS against ${targetFps} FPS target.`
+      : frameHealth === 'WARNING'
+      ? `[WARNING] Performance under slight pressure: ${fps.toFixed(1)} FPS (${(frameBudgetMs - currentFrameMs).toFixed(1)}ms delta, Budget Risk: ${budgetRisk}).`
+      : `[ERROR] Significant frame drops: ${fps.toFixed(1)} FPS (exceeds ${targetFps} FPS budget by ${(currentFrameMs - frameBudgetMs).toFixed(1)}ms, Budget Risk: ${budgetRisk}).`;
 
     return {
       status,
+      frameHealth,
+      budgetRisk,
       summary,
       targetFps,
       currentFps: Math.round(fps * 10) / 10,
@@ -172,7 +201,8 @@ export class PerformanceExplainer {
     const lines = [
       `=== MIX PERFORMANCE REPORT ===`,
       explanation.summary,
-      `Frame Time: ${explanation.currentFrameMs} ms (Budget: ${explanation.frameBudgetMs} ms for ${explanation.targetFps} FPS)`,
+      `Frame Health: ${explanation.frameHealth} · Budget Risk: ${explanation.budgetRisk}`,
+      `Frame Time: ${explanation.currentFrameMs} ms (Budget: ${explanation.frameBudgetMs} ms for ${explanation.targetFps} FPS, Measured: ${explanation.currentFps} FPS)`,
       ``,
       `Largest Likely Costs:`,
     ];

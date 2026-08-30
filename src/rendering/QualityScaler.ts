@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { RenderPipeline } from './RenderPipeline';
 import type { PerformanceTargetDescriptor, QualityStepDefinition } from './profiles/PerformanceTargetRegistry';
+import type { LODSystem } from './LODSystem';
+import type { AnimationLodManager } from '../assets/derived/AnimationOptimizer';
 
 export interface QualityScalerOptions {
   /** Target FPS to hold (default 55, or taken from PerformanceTarget). */
@@ -15,6 +17,12 @@ export interface QualityScalerOptions {
   minScale?: number;
   /** Whether to start running immediately. */
   enabled?: boolean;
+  /** Geometry LOD subsystem to mutate on quality level changes. */
+  lodSystem?: LODSystem;
+  /** Skeletal animation LOD subsystem to mutate on quality level changes. */
+  animationLodManager?: AnimationLodManager;
+  /** Callback invoked when particle density is scaled. */
+  onParticleDensityChange?: (density: number) => void;
 }
 
 export interface QualityChangeEvent {
@@ -47,6 +55,9 @@ export class QualityScaler {
   private readonly upHysteresis: number;
   private readonly cooldown: number;
   private readonly minScale: number;
+  private lodSystem?: LODSystem;
+  private animationLodManager?: AnimationLodManager;
+  private onParticleDensityChange?: (density: number) => void;
 
   private smoothedFps = 60;
   private lastSampleTime = 0;
@@ -67,10 +78,13 @@ export class QualityScaler {
     let actualRenderer: THREE.WebGLRenderer | null = null;
     const actualPipeline = pipeline ?? null;
 
-    if (rendererOrOpts && ((rendererOrOpts as any).isWebGLRenderer || (rendererOrOpts as any).domElement)) {
-      actualRenderer = rendererOrOpts as THREE.WebGLRenderer;
-    } else if (rendererOrOpts && typeof rendererOrOpts === 'object') {
+    if (pipeline !== undefined || Object.keys(opts).length > 0) {
+      actualRenderer = (rendererOrOpts as THREE.WebGLRenderer) ?? null;
+      actualOpts = opts;
+    } else if (rendererOrOpts && typeof rendererOrOpts === 'object' && !(rendererOrOpts as any).domElement && !(rendererOrOpts as any).render) {
       actualOpts = rendererOrOpts as QualityScalerOptions;
+    } else {
+      actualRenderer = (rendererOrOpts as THREE.WebGLRenderer) ?? null;
     }
 
     this.renderer = actualRenderer!;
@@ -80,10 +94,28 @@ export class QualityScaler {
     this.upHysteresis = actualOpts.upHysteresis ?? 8;
     this.cooldown = actualOpts.cooldown ?? 1.5;
     this.minScale = actualOpts.minScale ?? 0.55;
+    this.lodSystem = actualOpts.lodSystem;
+    this.animationLodManager = actualOpts.animationLodManager;
+    this.onParticleDensityChange = actualOpts.onParticleDensityChange;
     this.filterLevels();
     if (actualOpts.enabled) {
       this.enable();
     }
+  }
+
+  setLODSystem(lod: LODSystem): void {
+    this.lodSystem = lod;
+    if (this.currentStep?.lodBias !== undefined) this.lodSystem.setDistanceBias(this.currentStep.lodBias);
+  }
+
+  setAnimationLodManager(anim: AnimationLodManager): void {
+    this.animationLodManager = anim;
+    if (this.currentStep?.animationLodBias !== undefined) this.animationLodManager.setAnimationLodBias(this.currentStep.animationLodBias);
+  }
+
+  setParticleDensityCallback(cb: (density: number) => void): void {
+    this.onParticleDensityChange = cb;
+    if (this.currentStep?.particleDensity !== undefined) this.onParticleDensityChange(this.currentStep.particleDensity);
   }
 
   private filterLevels(): void {
@@ -143,56 +175,54 @@ export class QualityScaler {
   enable(): void {
     if (this.running) return;
     this.running = true;
-    if (this.renderer) {
-      this.originalShadows = this.renderer.shadowMap?.enabled ?? false;
-      this.originalPixelRatio = typeof this.renderer.getPixelRatio === 'function' ? this.renderer.getPixelRatio() : 1;
-    }
-    this.originalPassEnabled.clear();
     this.lastSampleTime = performance.now();
+    this.lastChangeTime = performance.now();
     this.frameCount = 0;
-    const loop = () => {
-      if (!this.running) return;
-      this.sample();
-      if (typeof requestAnimationFrame === 'function') {
-        this.rafId = requestAnimationFrame(loop);
-      }
-    };
-    if (typeof requestAnimationFrame === 'function') {
-      this.rafId = requestAnimationFrame(loop);
+    if (this.pipeline) {
+      this.originalPixelRatio = 1;
+    } else if (this.renderer) {
+      this.originalPixelRatio = typeof this.renderer.getPixelRatio === 'function' ? this.renderer.getPixelRatio() : 1;
+      this.originalShadows = this.renderer.shadowMap?.enabled ?? false;
     }
+    this.applyLevel(this.currentLevel, 'startup');
   }
 
   disable(): void {
     if (!this.running) return;
     this.running = false;
-    if (typeof cancelAnimationFrame === 'function') {
+    if (this.rafId) {
       cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
     }
-    this.applyLevel(0, 'scaler_disabled');
+    this.applyLevel(0, 'shutdown');
   }
 
   private sample(): void {
+    if (!this.running) return;
     this.frameCount++;
     const now = performance.now();
-    const elapsed = now - this.lastSampleTime;
-    if (elapsed < 500) return;
-
-    const fps = (this.frameCount * 1000) / elapsed;
-    this.smoothedFps += (fps - this.smoothedFps) * 0.5;
-    this.frameCount = 0;
-    this.lastSampleTime = now;
-
-    this.adjustQuality(now);
+    const elapsed = (now - this.lastSampleTime) / 1000;
+    if (elapsed >= 0.5) {
+      const instantFps = this.frameCount / elapsed;
+      this.smoothedFps = this.smoothedFps * 0.7 + instantFps * 0.3;
+      this.frameCount = 0;
+      this.lastSampleTime = now;
+      this.adjustQuality(now);
+    }
   }
 
   private adjustQuality(now: number): void {
-    if ((now - this.lastChangeTime) / 1000 < this.cooldown) return;
+    if (now - this.lastChangeTime < this.cooldown * 1000) return;
+    const underBudget = this.smoothedFps < this.targetFps - this.downHysteresis;
+    const overBudget = this.smoothedFps > this.targetFps + this.upHysteresis;
 
-    if (this.smoothedFps < this.targetFps - this.downHysteresis && this.currentLevel < this.levels.length - 1) {
-      this.applyLevel(this.currentLevel + 1, 'sustained_gpu_pressure');
+    if (underBudget && this.currentLevel < this.levels.length - 1) {
+      const next = this.currentLevel + 1;
+      this.applyLevel(next, `fps_drop_${this.smoothedFps.toFixed(1)}_below_${this.targetFps}`);
       this.lastChangeTime = now;
-    } else if (this.smoothedFps > this.targetFps + this.upHysteresis && this.currentLevel > 0) {
-      this.applyLevel(this.currentLevel - 1, 'sufficient_headroom');
+    } else if (overBudget && this.currentLevel > 0) {
+      const next = this.currentLevel - 1;
+      this.applyLevel(next, `fps_recovery_${this.smoothedFps.toFixed(1)}_above_${this.targetFps}`);
       this.lastChangeTime = now;
     }
   }
@@ -209,7 +239,7 @@ export class QualityScaler {
     if (this.pipeline) {
       this.pipeline.setDynamicResolutionScale(level.scale);
       changes.push(`internal scale -> ${level.scale.toFixed(2)}x`);
-    } else if (this.renderer) {
+    } else if (this.renderer && typeof this.renderer.setPixelRatio === 'function') {
       this.renderer.setPixelRatio(this.originalPixelRatio * level.scale);
       changes.push(`pixel ratio -> ${(this.originalPixelRatio * level.scale).toFixed(2)}`);
     }
@@ -217,12 +247,12 @@ export class QualityScaler {
     // 2. Expensive post passes.
     if (this.pipeline) {
       const pipeAny = this.pipeline as unknown as Record<string, { enabled?: boolean } | undefined>;
-      const allTracked = new Set<string>(this.levels.flatMap((l) => l.disablePasses));
+      const allTracked = new Set<string>(this.levels.flatMap((l) => l.disablePasses ?? []));
       for (const name of allTracked) {
         const pass = pipeAny[name];
         if (!pass) continue;
         if (!this.originalPassEnabled.has(name)) this.originalPassEnabled.set(name, pass.enabled ?? true);
-        const shouldDisable = level.disablePasses.includes(name);
+        const shouldDisable = (level.disablePasses ?? []).includes(name);
         const nextState = shouldDisable ? false : (this.originalPassEnabled.get(name) ?? true);
         if (pass.enabled !== nextState) {
           pass.enabled = nextState;
@@ -241,8 +271,23 @@ export class QualityScaler {
       }
     }
 
-    if (level.lodBias !== 1.0) changes.push(`lodBias -> ${level.lodBias.toFixed(1)}x`);
-    if (level.particleDensity !== 1.0) changes.push(`particleDensity -> ${Math.round(level.particleDensity * 100)}%`);
+    // 4. Geometry LOD bias mutation
+    if (this.lodSystem && level.lodBias !== undefined) {
+      this.lodSystem.setDistanceBias(level.lodBias);
+      if (level.lodBias !== 1.0) changes.push(`lodBias -> ${level.lodBias.toFixed(1)}x`);
+    }
+
+    // 5. Animation LOD bias mutation
+    if (this.animationLodManager && level.animationLodBias !== undefined) {
+      this.animationLodManager.setAnimationLodBias(level.animationLodBias);
+      if (level.animationLodBias !== 1.0) changes.push(`animationLodBias -> ${level.animationLodBias.toFixed(1)}x`);
+    }
+
+    // 6. Particle density callback
+    if (this.onParticleDensityChange && level.particleDensity !== undefined) {
+      this.onParticleDensityChange(level.particleDensity);
+      if (level.particleDensity !== 1.0) changes.push(`particleDensity -> ${Math.round(level.particleDensity * 100)}%`);
+    }
 
     const preserved = [
       'Anime toon shading & Face SDF',
@@ -266,6 +311,19 @@ export class QualityScaler {
       this.history.push(event);
       if (this.history.length > this.maxHistory) this.history.shift();
     }
+  }
+
+  setQualitySteps(steps: QualityStepDefinition[]): void {
+    this.levels = steps.map(s => ({ ...s, disablePasses: [...(s.disablePasses ?? [])] }));
+    this.filterLevels();
+    this.currentLevel = 0;
+    if (this.running) {
+      this.applyLevel(0, 'quality_steps_changed');
+    }
+  }
+
+  setLevel(index: number, reason = 'manual_override'): void {
+    this.applyLevel(index, reason);
   }
 
   describe(): string {

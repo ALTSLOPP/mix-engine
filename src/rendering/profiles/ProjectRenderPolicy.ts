@@ -34,9 +34,27 @@ export function createDefaultProjectRenderPolicy(): ProjectRenderPolicy {
 
 export function validateProjectRenderPolicy(policy: Partial<ProjectRenderPolicy>): boolean {
   if (!policy || typeof policy !== 'object') throw new Error('ProjectRenderPolicy must be an object.');
-  if (policy.visualStyle) VisualStyleRegistry.validate({ id: policy.visualStyle as VisualStyleId });
-  if (policy.performanceTarget) PerformanceTargetRegistry.validate({ id: policy.performanceTarget as PerformanceTargetId });
-  if (policy.optimizationPolicy) {
+  if (policy.visualStyle !== undefined) {
+    if (typeof policy.visualStyle !== 'string' || policy.visualStyle.trim() === '') {
+      throw new Error('ProjectRenderPolicy visualStyle must be a non-empty string.');
+    }
+    if (!VisualStyleRegistry.has(policy.visualStyle)) {
+      const suggestions = VisualStyleRegistry.getSuggestions(policy.visualStyle);
+      const hint = suggestions.length > 0 ? ` Did you mean: ${suggestions.join(', ')}?` : '';
+      throw new Error(`Invalid visualStyle '${policy.visualStyle}' in ProjectRenderPolicy.${hint}`);
+    }
+  }
+  if (policy.performanceTarget !== undefined) {
+    if (typeof policy.performanceTarget !== 'string' || policy.performanceTarget.trim() === '') {
+      throw new Error('ProjectRenderPolicy performanceTarget must be a non-empty string.');
+    }
+    if (!PerformanceTargetRegistry.has(policy.performanceTarget)) {
+      const suggestions = PerformanceTargetRegistry.getSuggestions(policy.performanceTarget);
+      const hint = suggestions.length > 0 ? ` Did you mean: ${suggestions.join(', ')}?` : '';
+      throw new Error(`Invalid performanceTarget '${policy.performanceTarget}' in ProjectRenderPolicy.${hint}`);
+    }
+  }
+  if (policy.optimizationPolicy !== undefined) {
     const valid = ['off', 'suggest', 'auto', 'strict'];
     if (!valid.includes(policy.optimizationPolicy)) {
       throw new Error(`Invalid optimizationPolicy '${policy.optimizationPolicy}'. Must be one of: ${valid.join(', ')}`);
@@ -70,8 +88,8 @@ export function deserializeProjectRenderPolicy(json: string): ProjectRenderPolic
 }
 
 export function describeProjectRenderPolicy(policy: ProjectRenderPolicy): string {
-  const style = VisualStyleRegistry.get(policy.visualStyle);
-  const target = PerformanceTargetRegistry.get(policy.performanceTarget);
+  const style = VisualStyleRegistry.require(policy.visualStyle);
+  const target = PerformanceTargetRegistry.require(policy.performanceTarget);
   const fps = policy.targetFps ?? target.targetFps;
 
   return [

@@ -59,16 +59,21 @@ export class AssetCache {
   }
 
   /** ++refcount, return a resource-sharing clone tagged by the caller as {source:'asset'}. */
-  checkout(assetId: string): THREE.Group {
+  checkout(assetId: string, targetProfile?: string, resolver?: import('../assets/derived/RuntimeVariantResolver').RuntimeVariantResolver): THREE.Group {
     const entry = this.entries.get(assetId);
     if (!entry) throw new Error(`AssetCache.checkout: '${assetId}' not loaded`);
     entry.refCount += 1;
-    // SkeletonUtils.clone (NOT Object3D.clone): plain clone leaves the cloned SkinnedMesh's
-    // skeleton pointing at the CANONICAL bones, so the animation mixer drives the clone's
-    // bones while the mesh deforms from the static canonical skeleton — the character freezes
-    // in a T-pose. SkeletonUtils re-links each clone's skeleton to its OWN bones. Geometry,
-    // materials and textures are still shared by reference, so the resource-sharing holds.
-    return cloneWithSkeleton(entry.canonical) as THREE.Group;
+    let canonical = entry.canonical;
+    if (targetProfile && resolver) {
+      const resolved = resolver.resolve({
+        assetId,
+        sourceData: entry.canonical,
+        sourceHash: assetId,
+        targetProfile,
+      });
+      canonical = resolved.data;
+    }
+    return cloneWithSkeleton(canonical) as THREE.Group;
   }
 
   getAnimations(assetId: string): THREE.AnimationClip[] {

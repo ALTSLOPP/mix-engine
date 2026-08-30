@@ -231,13 +231,13 @@ export class Viewport {
   getResolutionSettings(): Readonly<RenderResolutionSettings> { return { ...this.resolutionSettings }; }
 
   applyVisualStyle(styleId: string): void {
-    const style = VisualStyleRegistry.get(styleId);
+    const style = VisualStyleRegistry.require(styleId);
     this.animeLighting.applyStyle(style);
     this.pipeline.applyVisualStyle(style);
   }
 
-  applyPerformanceTarget(targetId: string): void {
-    const target = PerformanceTargetRegistry.get(targetId);
+  applyPerformanceTarget(targetId: string, qualityScaler?: import('./QualityScaler').QualityScaler): void {
+    const target = PerformanceTargetRegistry.require(targetId);
     this.setResolutionSettings({
       fsrEnabled: target.fsrEnabled,
       fsrSharpness: target.fsrSharpness,
@@ -252,7 +252,22 @@ export class Viewport {
     if (this.pipeline.ssrPass) this.pipeline.ssrPass.enabled = target.ssrEnabled;
     if (this.pipeline.dofPass) this.pipeline.dofPass.enabled = target.dofEnabled;
     if (this.pipeline.volumetricFogPass) this.pipeline.volumetricFogPass.enabled = target.volumetricFogEnabled;
+    if (this.pipeline.atmosphericDepthPass) this.pipeline.atmosphericDepthPass.enabled = !target.volumetricFogEnabled;
     if (this.pipeline.contactShadowsPass) this.pipeline.contactShadowsPass.enabled = target.contactShadowsEnabled;
+    if (qualityScaler) qualityScaler.applyPerformanceTarget(target);
+  }
+
+  getActiveShadowCastersCount(): number {
+    if (!this.renderer.shadowMap.enabled) return 0;
+    let count = 0;
+    if (this.shadow && (this.shadow as any).sun?.castShadow) count++;
+    this.scene.traverse((obj) => {
+      const light = obj as THREE.Light;
+      if (light.isLight && light.castShadow && light !== (this.shadow as any)?.sun) {
+        count++;
+      }
+    });
+    return Math.max(count, this.renderer.shadowMap.enabled ? 1 : 0);
   }
 
   getRenderResolution() {

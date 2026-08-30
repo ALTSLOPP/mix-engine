@@ -8,6 +8,8 @@ import { CelToonMaterial } from '../../materials/CelToonMaterial';
 import { AssetAnalyzer } from '../../assets/derived/AssetAnalyzer';
 import { OptimizationPlanner } from '../../assets/derived/OptimizationPlanner';
 import { DerivedVariantCache } from '../../assets/derived/DerivedVariantCache';
+import { DerivedAssetPipeline } from '../../assets/derived/DerivedAssetPipeline';
+import { AnimationOptimizer } from '../../assets/derived/AnimationOptimizer';
 import { PerformanceExplainer, type SceneRenderStats } from '../../rendering/PerformanceExplainer';
 import { TextRenderDescriber } from '../../rendering/TextRenderDescriber';
 
@@ -17,7 +19,10 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
   });
 
   map.set('day_night_cycle', (cmd: Extract<AICommand, { type: 'day_night_cycle' }>) => {
-    if (!ctx.dayNight) { console.warn('[AIBridge] day_night_cycle: unavailable'); return; }
+    if (!ctx.dayNight) {
+      ctx.setQueryResult({ ok: false, error: 'day_night_cycle: unavailable' });
+      return;
+    }
     if (cmd.speed !== undefined) ctx.dayNight.setSpeed(cmd.speed);
     if (cmd.hour !== undefined) ctx.dayNight.setHour(cmd.hour);
     if (cmd.enabled !== undefined) ctx.dayNight.setEnabled(cmd.enabled);
@@ -65,17 +70,44 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
   });
 
   map.set('render_style_get', (cmd: any) => {
-    const style = VisualStyleRegistry.get(cmd.styleId);
+    if (!cmd.styleId || !VisualStyleRegistry.has(cmd.styleId)) {
+      ctx.setQueryResult({
+        ok: false,
+        code: 'UNKNOWN_VISUAL_STYLE',
+        requested: cmd.styleId,
+        suggestions: VisualStyleRegistry.getSuggestions(cmd.styleId || ''),
+      });
+      return;
+    }
+    const style = VisualStyleRegistry.require(cmd.styleId);
     ctx.setQueryResult({ ok: true, style });
   });
 
   map.set('render_style_apply', (cmd: any) => {
+    if (!cmd.styleId || !VisualStyleRegistry.has(cmd.styleId)) {
+      ctx.setQueryResult({
+        ok: false,
+        code: 'UNKNOWN_VISUAL_STYLE',
+        requested: cmd.styleId,
+        suggestions: VisualStyleRegistry.getSuggestions(cmd.styleId || ''),
+      });
+      return;
+    }
     ctx.viewport.applyVisualStyle(cmd.styleId);
-    const style = VisualStyleRegistry.get(cmd.styleId);
+    const style = VisualStyleRegistry.require(cmd.styleId);
     ctx.setQueryResult({ ok: true, appliedStyle: style.id, colorTransform: style.colorTransform });
   });
 
   map.set('render_style_describe', (cmd: any) => {
+    if (!cmd.styleId || !VisualStyleRegistry.has(cmd.styleId)) {
+      ctx.setQueryResult({
+        ok: false,
+        code: 'UNKNOWN_VISUAL_STYLE',
+        requested: cmd.styleId,
+        suggestions: VisualStyleRegistry.getSuggestions(cmd.styleId || ''),
+      });
+      return;
+    }
     const desc = VisualStyleRegistry.describe(cmd.styleId);
     ctx.setQueryResult({ ok: true, description: desc });
   });
@@ -86,13 +118,31 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
   });
 
   map.set('render_target_get', (cmd: any) => {
-    const target = PerformanceTargetRegistry.get(cmd.targetId);
+    if (!cmd.targetId || !PerformanceTargetRegistry.has(cmd.targetId)) {
+      ctx.setQueryResult({
+        ok: false,
+        code: 'UNKNOWN_PERFORMANCE_TARGET',
+        requested: cmd.targetId,
+        suggestions: PerformanceTargetRegistry.getSuggestions(cmd.targetId || ''),
+      });
+      return;
+    }
+    const target = PerformanceTargetRegistry.require(cmd.targetId);
     ctx.setQueryResult({ ok: true, target });
   });
 
   map.set('render_target_apply', (cmd: any) => {
-    ctx.viewport.applyPerformanceTarget(cmd.targetId);
-    const target = PerformanceTargetRegistry.get(cmd.targetId);
+    if (!cmd.targetId || !PerformanceTargetRegistry.has(cmd.targetId)) {
+      ctx.setQueryResult({
+        ok: false,
+        code: 'UNKNOWN_PERFORMANCE_TARGET',
+        requested: cmd.targetId,
+        suggestions: PerformanceTargetRegistry.getSuggestions(cmd.targetId || ''),
+      });
+      return;
+    }
+    ctx.viewport.applyPerformanceTarget(cmd.targetId, ctx.qualityScaler);
+    const target = PerformanceTargetRegistry.require(cmd.targetId);
     const res = ctx.viewport.getRenderResolution();
     ctx.setQueryResult({
       ok: true,
@@ -107,6 +157,15 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
   });
 
   map.set('render_target_describe', (cmd: any) => {
+    if (!cmd.targetId || !PerformanceTargetRegistry.has(cmd.targetId)) {
+      ctx.setQueryResult({
+        ok: false,
+        code: 'UNKNOWN_PERFORMANCE_TARGET',
+        requested: cmd.targetId,
+        suggestions: PerformanceTargetRegistry.getSuggestions(cmd.targetId || ''),
+      });
+      return;
+    }
     const desc = PerformanceTargetRegistry.describe(cmd.targetId);
     ctx.setQueryResult({ ok: true, description: desc });
   });
@@ -138,7 +197,7 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
       maxVertexUniforms: caps.maxVertexUniforms,
       fsr1: true,
       meshoptDecode: true,
-      ktx2Decode: true,
+      ktx2Decode: false,
       assetCooking: {
         meshOptimization: true,
         textureTranscode: true,
@@ -149,14 +208,18 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
 
   // --- Budget Report & Explanation ---
   map.set('render_budget_report', (cmd: any) => {
-    const res = ctx.viewport.getRenderResolution();
-    const settings = ctx.viewport.getResolutionSettings();
-    const frame = ctx.viewport.pipeline.getLastFrameMetrics();
+    const frame = ctx.viewport.pipeline?.getLastFrameMetrics?.() ?? null;
     if (!frame) {
       ctx.setQueryResult({ ok: false, error: 'No completed render frame is available yet.' });
       return;
     }
+    const latestFrame = ctx.profiler?.latest();
+    const measuredFps = ctx.qualityScaler?.fps ?? (latestFrame && latestFrame.frameMs > 0 ? 1000 / latestFrame.frameMs : undefined) ?? cmd.fps ?? cmd.targetFps ?? 60;
+    const res = ctx.viewport.getRenderResolution();
+    const settings = ctx.viewport.getResolutionSettings();
     const stats: SceneRenderStats = {
+      fps: measuredFps,
+      frameTimeMs: 1000 / measuredFps,
       internalWidth: res.internalWidth,
       internalHeight: res.internalHeight,
       outputWidth: res.outputWidth,
@@ -164,24 +227,29 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
       fsrEnabled: settings.fsrEnabled,
       rcasSharpness: settings.fsrSharpness,
       drawCalls: frame.drawCalls,
+      submittedTriangles: frame.triangles,
       visibleTriangles: frame.triangles,
       totalGeometries: frame.geometries,
       totalTextures: frame.textures,
-      shadowCasters: (ctx.viewport.shadow as any)?.cascades?.length ?? 1,
+      shadowCasters: ctx.viewport.getActiveShadowCastersCount?.() ?? (ctx.viewport.shadow as any)?.cascades?.length ?? 1,
     };
     const explanation = PerformanceExplainer.explain(stats, cmd.targetFps ?? 60);
     ctx.setQueryResult({ ok: true, report: explanation, formatted: PerformanceExplainer.formatReport(explanation) });
   });
 
   map.set('render_explain', (cmd: any) => {
-    const res = ctx.viewport.getRenderResolution();
-    const settings = ctx.viewport.getResolutionSettings();
-    const frame = ctx.viewport.pipeline.getLastFrameMetrics();
+    const frame = ctx.viewport.pipeline?.getLastFrameMetrics?.() ?? null;
     if (!frame) {
       ctx.setQueryResult({ ok: false, error: 'No completed render frame is available yet.' });
       return;
     }
+    const latestFrame = ctx.profiler?.latest();
+    const measuredFps = ctx.qualityScaler?.fps ?? (latestFrame && latestFrame.frameMs > 0 ? 1000 / latestFrame.frameMs : undefined) ?? cmd.fps ?? cmd.targetFps ?? 60;
+    const res = ctx.viewport.getRenderResolution();
+    const settings = ctx.viewport.getResolutionSettings();
     const stats: SceneRenderStats = {
+      fps: measuredFps,
+      frameTimeMs: 1000 / measuredFps,
       internalWidth: res.internalWidth,
       internalHeight: res.internalHeight,
       outputWidth: res.outputWidth,
@@ -189,9 +257,11 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
       fsrEnabled: settings.fsrEnabled,
       rcasSharpness: settings.fsrSharpness,
       drawCalls: frame.drawCalls,
+      submittedTriangles: frame.triangles,
       visibleTriangles: frame.triangles,
       totalGeometries: frame.geometries,
       totalTextures: frame.textures,
+      shadowCasters: ctx.viewport.getActiveShadowCastersCount?.() ?? (ctx.viewport.shadow as any)?.cascades?.length ?? 1,
     };
     const explanation = PerformanceExplainer.explain(stats, cmd.targetFps ?? 60);
     ctx.setQueryResult({ ok: true, explanation: PerformanceExplainer.formatReport(explanation) });
@@ -213,9 +283,25 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
       hairHighlightStrength: cmd.hairHighlightStrength,
       rimIntensity: cmd.rimIntensity,
       shadowTint: cmd.shadowTint,
+      faceSdfMode: cmd.faceSdfMode,
       lightingContext: ctx.viewport.animeLighting,
     });
+    if (res.converted === 0) {
+      ctx.setQueryResult({ ok: false, error: `No convertible meshes found on entity ${cmd.entityId}.` });
+      return;
+    }
     ctx.setQueryResult({ ok: true, entityId: cmd.entityId, materialsConverted: res.converted });
+  });
+
+  map.set('anime_material_revert', (cmd: any) => {
+    const rb = ctx.sceneManager.getComponent<any>(cmd.entityId, 'rigidBody');
+    const obj = rb?.mesh;
+    if (!obj) {
+      ctx.setQueryResult({ ok: false, error: `Entity ${cmd.entityId} not found or has no mesh object.` });
+      return;
+    }
+    const res = AnimeMaterialFamily.revertCharacter(obj);
+    ctx.setQueryResult({ ok: true, entityId: cmd.entityId, materialsReverted: res.reverted });
   });
 
   map.set('anime_material_configure', (cmd: any) => {
@@ -238,11 +324,16 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
             if (cmd.shadowColor !== undefined) m.setLightingOverrides({ shadowColor: cmd.shadowColor });
             if (cmd.rimIntensity !== undefined) m.setLightingOverrides({ rimIntensity: cmd.rimIntensity });
             if (cmd.hairHighlightStrength !== undefined) m.uniforms.uHairHighlightStrength.value = cmd.hairHighlightStrength;
+            if (cmd.metalness !== undefined) m.metalness = cmd.metalness;
             configured++;
           }
         }
       }
     });
+    if (configured === 0) {
+      ctx.setQueryResult({ ok: false, error: `No CelToonMaterials found on entity ${cmd.entityId}.` });
+      return;
+    }
     ctx.setQueryResult({ ok: true, entityId: cmd.entityId, configuredMaterials: configured });
   });
 
@@ -270,27 +361,84 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
 
   // --- Asset Optimization Commands ---
   map.set('asset_analyze', (cmd: any) => {
-    const rb = cmd.entityId !== undefined ? ctx.sceneManager.getComponent<any>(cmd.entityId, 'rigidBody') : undefined;
-    const obj = rb?.mesh;
-    const report = AssetAnalyzer.analyzeAsset({
-      assetId: cmd.assetId ?? `entity_${cmd.entityId}`,
-      object: obj,
-    });
-    ctx.setQueryResult({ ok: true, report, description: TextRenderDescriber.describeAsset(report) });
+    let obj: THREE.Object3D | undefined = undefined;
+    let checkedOut = false;
+    if (cmd.entityId !== undefined) {
+      const entityId = typeof cmd.entityId === 'string' && ctx.resolveEntity ? ctx.resolveEntity(cmd.entityId) : cmd.entityId;
+      const rb = ctx.sceneManager.getComponent<any>(entityId, 'rigidBody');
+      obj = rb?.mesh;
+    } else if (cmd.assetId && ctx.assetCache?.has(cmd.assetId)) {
+      obj = ctx.assetCache.checkout(cmd.assetId);
+      checkedOut = true;
+    }
+    if (!obj) {
+      ctx.setQueryResult({ ok: false, error: `Asset '${cmd.assetId ?? cmd.entityId}' could not be located in scene or asset cache.` });
+      return;
+    }
+    try {
+      const report = AssetAnalyzer.analyzeAsset({
+        assetId: cmd.assetId ?? `entity_${cmd.entityId}`,
+        object: obj,
+      });
+      ctx.setQueryResult({ ok: true, report, description: TextRenderDescriber.describeAsset(report) });
+    } finally {
+      if (checkedOut && cmd.assetId) ctx.assetCache?.release(cmd.assetId);
+    }
   });
 
   map.set('asset_optimize_plan', (cmd: any) => {
-    const rb = cmd.entityId !== undefined ? ctx.sceneManager.getComponent<any>(cmd.entityId, 'rigidBody') : undefined;
-    const obj = rb?.mesh;
-    const meshMetrics = obj ? AssetAnalyzer.analyzeMesh(obj) : undefined;
-    const plan = OptimizationPlanner.planMeshOptimization({
-      assetId: cmd.assetId ?? `entity_${cmd.entityId}`,
-      category: cmd.category,
-      overrides: cmd.overrides,
-      targetProfile: cmd.targetProfile,
-      meshMetrics,
-    });
-    ctx.setQueryResult({ ok: true, plan, description: TextRenderDescriber.describeOptimizationPlan(plan) });
+    let obj: THREE.Object3D | undefined = undefined;
+    let checkedOut = false;
+    if (cmd.entityId !== undefined) {
+      const entityId = typeof cmd.entityId === 'string' && ctx.resolveEntity ? ctx.resolveEntity(cmd.entityId) : cmd.entityId;
+      const rb = ctx.sceneManager.getComponent<any>(entityId, 'rigidBody');
+      obj = rb?.mesh;
+    } else if (cmd.assetId && ctx.assetCache?.has(cmd.assetId)) {
+      obj = ctx.assetCache.checkout(cmd.assetId);
+      checkedOut = true;
+    }
+    try {
+      const meshMetrics = obj ? AssetAnalyzer.analyzeMesh(obj, cmd.assetId ?? `entity_${cmd.entityId}`) : undefined;
+      const plan = OptimizationPlanner.planMeshOptimization({
+        assetId: cmd.assetId ?? `entity_${cmd.entityId}`,
+        category: cmd.category,
+        importance: cmd.importance,
+        overrides: cmd.overrides,
+        targetProfile: cmd.targetProfile ?? 'ps3_plus_500',
+        meshMetrics,
+      });
+      ctx.setQueryResult({ ok: true, plan, description: TextRenderDescriber.describeOptimizationPlan(plan) });
+    } finally {
+      if (checkedOut && cmd.assetId) ctx.assetCache?.release(cmd.assetId);
+    }
+  });
+
+  map.set('asset_optimize', (cmd: any) => {
+    let obj: THREE.Object3D | undefined = undefined;
+    let checkedOut = false;
+    if (cmd.entityId !== undefined) {
+      const entityId = typeof cmd.entityId === 'string' && ctx.resolveEntity ? ctx.resolveEntity(cmd.entityId) : cmd.entityId;
+      const rb = ctx.sceneManager.getComponent<any>(entityId, 'rigidBody');
+      obj = rb?.mesh;
+    } else if (cmd.assetId && ctx.assetCache?.has(cmd.assetId)) {
+      obj = ctx.assetCache.checkout(cmd.assetId);
+      checkedOut = true;
+    }
+    if (!obj) {
+      ctx.setQueryResult({ ok: false, error: `Asset '${cmd.assetId ?? cmd.entityId}' could not be located in scene or asset cache.` });
+      return;
+    }
+    try {
+      const pipeline = DerivedAssetPipeline.get();
+      const result = pipeline.process(cmd.assetId ?? `entity_${cmd.entityId}`, obj, cmd.targetProfile ?? 'ps3_plus_500', {
+        category: cmd.category,
+        importance: cmd.importance,
+        overrides: cmd.overrides,
+      });
+      ctx.setQueryResult({ ok: result.ok, result, formatted: TextRenderDescriber.describeOptimizationPlan(result.plan) });
+    } finally {
+      if (checkedOut && cmd.assetId) ctx.assetCache?.release(cmd.assetId);
+    }
   });
 
   map.set('asset_variant_list', () => {
@@ -300,6 +448,42 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
       variants: cache.listKeys(),
       totalSizeBytes: cache.getTotalSizeBytes(),
     });
+  });
+
+  map.set('asset_variant_get', (cmd: any) => {
+    const pipeline = DerivedAssetPipeline.get();
+    const pinned = pipeline.resolver.getPinnedVariant(cmd.assetId);
+    const variants = pipeline.cache.listKeys().filter(k => k.includes(cmd.assetId));
+    ctx.setQueryResult({ ok: true, assetId: cmd.assetId, pinnedVariant: pinned ?? null, availableVariants: variants });
+  });
+
+  map.set('asset_variant_pin', (cmd: any) => {
+    const pipeline = DerivedAssetPipeline.get();
+    pipeline.resolver.pinVariant(cmd.assetId, cmd.variantKey);
+    ctx.setQueryResult({ ok: true, assetId: cmd.assetId, pinnedVariant: cmd.variantKey });
+  });
+
+  map.set('asset_variant_unpin', (cmd: any) => {
+    const pipeline = DerivedAssetPipeline.get();
+    pipeline.resolver.unpinVariant(cmd.assetId);
+    ctx.setQueryResult({ ok: true, assetId: cmd.assetId, unpinned: true });
+  });
+
+  map.set('animation_optimize', (cmd: any) => {
+    let clips: THREE.AnimationClip[] = [];
+    if (cmd.assetId && ctx.assetCache?.has(cmd.assetId)) {
+      clips = ctx.assetCache.getAnimations(cmd.assetId);
+    }
+    if (clips.length === 0) {
+      ctx.setQueryResult({ ok: false, error: `No animation clips found for asset '${cmd.assetId}'.` });
+      return;
+    }
+    const optimized = clips.map(c => AnimationOptimizer.optimizeClip(c, {
+      quaternionToleranceRad: cmd.tolerance ?? 0.002,
+      pruneConstantTracks: cmd.pruneConstant ?? true,
+      preserveRootMotion: cmd.preserveRootMotion ?? true,
+    }));
+    ctx.setQueryResult({ ok: true, assetId: cmd.assetId, optimizedClips: optimized.length });
   });
 }
 

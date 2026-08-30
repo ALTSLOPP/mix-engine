@@ -35,6 +35,12 @@ export class AnimeLightingContext {
   rimIntensity = 0.45;
   rimPower = 3.0;
 
+  readonly hairHighlightColor = new THREE.Color(0xffffff);
+  hairHighlightStrength = 0.6;
+
+  readonly outlineColor = new THREE.Color(0x1a1424);
+  outlineThickness = 1.2;
+
   timeOfDay = 12.0;
   revision = 0;
 
@@ -76,12 +82,22 @@ export class AnimeLightingContext {
     this.revision++;
   }
 
+  setHairHighlight(color: THREE.ColorRepresentation, strength?: number): void {
+    this.hairHighlightColor.set(color);
+    if (strength !== undefined) this.hairHighlightStrength = strength;
+    this.revision++;
+  }
+
   applyStyle(style: VisualStyleDescriptor): void {
     this.shadowTint.set(style.shadowTint);
     this.ambientColor.set(style.ambientFill);
     this.rimColor.set(style.rimColor);
     this.rimIntensity = style.rimIntensity;
     this.rimPower = style.rimPower;
+    if (style.hairHighlightColor) this.hairHighlightColor.set(style.hairHighlightColor);
+    if (style.hairHighlightStrength !== undefined) this.hairHighlightStrength = style.hairHighlightStrength;
+    if (style.outlineColor) this.outlineColor.set(style.outlineColor);
+    if (style.outlineThickness !== undefined) this.outlineThickness = style.outlineThickness;
     this.revision++;
   }
 

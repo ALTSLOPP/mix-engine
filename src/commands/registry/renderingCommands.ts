@@ -1748,4 +1748,119 @@ export const renderingCommandDefinitions: readonly CommandDefinition[] = [
     versionIntroduced: '1.1.0',
     parameters: { "type": "object", "properties": {}, "additionalProperties": true },
   },
+  {
+    type: "anime_material_revert",
+    summary: "Revert character meshes converted to anime cel-toon shaders back to their original materials.",
+    category: "rendering",
+    sideEffect: "runtime",
+    atomicSupport: "full",
+    atomicBoundary: "Mesh material restoration",
+    capability: "scene.write",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "entityId": { "type": ["number", "string"], "description": "Entity ID to revert", "required": false }
+      },
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "asset_optimize",
+    summary: "Run complete non-destructive asset optimization pipeline (analyze, plan, simplify/downscale, persist, cache).",
+    category: "rendering",
+    sideEffect: "runtime",
+    atomicSupport: "full",
+    atomicBoundary: "Derived asset optimization",
+    capability: "scene.write",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "assetId": { "type": "string", "description": "Asset ID", "required": false },
+        "entityId": { "type": ["number", "string"], "description": "Entity ID", "required": false },
+        "targetProfile": { "type": "string", "description": "Target profile", "required": false },
+        "category": { "type": "string", "description": "Semantic category", "required": false },
+        "importance": { "type": "string", "description": "Asset importance", "required": false },
+        "overrides": { "type": "object", "description": "Optimization overrides", "required": false }
+      },
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "asset_variant_get",
+    summary: "Query active and available derived variants for an asset.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "assetId": { "type": "string", "description": "Asset ID", "required": true }
+      },
+      "requiredProperties": ["assetId"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "asset_variant_pin",
+    summary: "Pin an asset to always use a specific variant key or source.",
+    category: "rendering",
+    sideEffect: "runtime",
+    atomicSupport: "full",
+    atomicBoundary: "Variant resolution pinning",
+    capability: "scene.write",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "assetId": { "type": "string", "description": "Asset ID", "required": true },
+        "variantKey": { "type": "string", "description": "Variant key or 'source'", "required": true }
+      },
+      "requiredProperties": ["assetId", "variantKey"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "asset_variant_unpin",
+    summary: "Remove variant pinning for an asset.",
+    category: "rendering",
+    sideEffect: "runtime",
+    atomicSupport: "full",
+    atomicBoundary: "Variant resolution unpinning",
+    capability: "scene.write",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "assetId": { "type": "string", "description": "Asset ID", "required": true }
+      },
+      "requiredProperties": ["assetId"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "animation_optimize",
+    summary: "Optimize animation clips by reducing redundant keyframes and pruning constant tracks.",
+    category: "rendering",
+    sideEffect: "runtime",
+    atomicSupport: "full",
+    atomicBoundary: "Animation clip curve optimization",
+    capability: "scene.write",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "assetId": { "type": "string", "description": "Asset ID", "required": true },
+        "tolerance": { "type": "number", "description": "Quaternion rotation error tolerance in radians", "required": false },
+        "pruneConstant": { "type": "boolean", "description": "Whether to remove constant tracks", "required": false },
+        "preserveRootMotion": { "type": "boolean", "description": "Preserve root motion curves", "required": false }
+      },
+      "requiredProperties": ["assetId"],
+      "additionalProperties": true
+    },
+  },
 ];

@@ -5,12 +5,14 @@
  * and post-processing quality tiers without restricting creator asset freedom.
  */
 
-export type PerformanceTargetId =
+export type BuiltInPerformanceTargetId =
   | 'ps3_plus_500'
   | 'balanced'
   | 'high_end'
   | 'unbounded'
   | 'custom';
+
+export type PerformanceTargetId = BuiltInPerformanceTargetId | (string & {});
 
 export interface QualityStepDefinition {
   scale: number;
@@ -211,14 +213,47 @@ export class PerformanceTargetRegistry {
     };
   }
 
+  static has(id: string): boolean {
+    return this.customTargets.has(id) || Object.prototype.hasOwnProperty.call(DEFAULT_PERFORMANCE_TARGETS, id);
+  }
+
   static get(id: PerformanceTargetId | string): PerformanceTargetDescriptor {
     if (this.customTargets.has(id)) {
       return this.clone(this.customTargets.get(id)!);
     }
-    if (id in DEFAULT_PERFORMANCE_TARGETS) {
-      return this.clone(DEFAULT_PERFORMANCE_TARGETS[id as PerformanceTargetId]);
+    if (Object.prototype.hasOwnProperty.call(DEFAULT_PERFORMANCE_TARGETS, id)) {
+      return this.clone(DEFAULT_PERFORMANCE_TARGETS[id as BuiltInPerformanceTargetId]);
     }
     return this.clone(DEFAULT_PERFORMANCE_TARGETS.ps3_plus_500);
+  }
+
+  static require(id: PerformanceTargetId | string): PerformanceTargetDescriptor {
+    if (!this.has(id)) {
+      const suggestions = this.getSuggestions(id);
+      const hint = suggestions.length > 0 ? ` Did you mean: ${suggestions.join(', ')}?` : '';
+      throw new Error(`Unknown performance target '${id}'.${hint}`);
+    }
+    return this.get(id);
+  }
+
+  static getSuggestions(id: string, limit = 3): string[] {
+    const query = id.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const all = this.list().map(t => t.id);
+    const scored = all.map(candidate => {
+      const candClean = candidate.toLowerCase().replace(/[^a-z0-9]/g, '');
+      let score = 0;
+      if (candidate.startsWith(id) || id.startsWith(candidate)) score += 10;
+      if (candClean.includes(query) || query.includes(candClean)) score += 5;
+      for (const char of query) {
+        if (candClean.includes(char)) score += 1;
+      }
+      return { candidate, score };
+    });
+    return scored
+      .filter(s => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(s => s.candidate);
   }
 
   static list(): PerformanceTargetDescriptor[] {
@@ -244,7 +279,7 @@ export class PerformanceTargetRegistry {
   }
 
   static describe(id: PerformanceTargetId | string): string {
-    const target = this.get(id);
+    const target = this.require(id);
     const resText = target.internalHeight > 0 && target.outputHeight > 0
       ? `${target.internalHeight}p internal -> ${target.outputHeight}p output`
       : target.internalHeight > 0

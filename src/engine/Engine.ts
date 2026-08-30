@@ -17,6 +17,7 @@ import { AIBridge, type AICommand } from '../ai/AIBridge';
 import { NavigationSystem } from '../ai/NavigationSystem';
 import { CullingSystem } from '../rendering/CullingSystem';
 import { LODSystem } from '../rendering/LODSystem';
+import { AnimationLodManager } from '../assets/derived/AnimationOptimizer';
 import { CombatSystem } from '../ecs/CombatSystem';
 import { WorkerAssetLoader } from '../streaming/WorkerAssetLoader';
 import { RuntimeAssetImporter } from '../streaming/RuntimeAssetImporter';
@@ -155,6 +156,8 @@ export class Engine {
   /** Level-of-Detail system. Auto-generates simplified meshes + swaps by camera distance.
    *  Opt-in per entity via `lod_register`; the loop ticks it before the cull. */
    readonly lod: LODSystem;
+  /** Distance-based Animation LOD manager (Hz-consistent multi-tier skeletal updates). */
+   readonly animationLod: AnimationLodManager;
   /** Combat pipeline: health, hitboxes, weapons, projectiles, damage queue. */
   readonly combat: CombatSystem;
   /** Worker-thread asset fetcher (offloads the network round-trip from the main thread). */
@@ -551,10 +554,15 @@ export class Engine {
     try { this.crashReporter.setDiagnosticsProvider(() => ({ render: (this.viewport.renderer as unknown as { info?: { render?: { calls: number; triangles: number; geometries: number; textures: number } } })?.info?.render ?? null } as unknown as import('../diagnostics/CrashReporter').CrashDiagnostics)); } catch {}
     try { this.crashReporter.attachCanvas(this.viewport.renderer.domElement); } catch {}
     this.detailManager = new DetailManager();
-    this.qualityScaler = new QualityScaler(this.viewport.renderer as unknown as THREE.WebGLRenderer, (this.viewport as unknown as { pipeline?: import('../rendering/RenderPipeline').RenderPipeline })?.pipeline ?? null);
+    this.animationLod = new AnimationLodManager();
+    this.qualityScaler = new QualityScaler(this.viewport.renderer as unknown as THREE.WebGLRenderer, (this.viewport as unknown as { pipeline?: import('../rendering/RenderPipeline').RenderPipeline })?.pipeline ?? null, {
+      lodSystem: this.lod,
+      animationLodManager: this.animationLod,
+    });
     this.raycastIndex = new RaycastIndex();
     this.fxPool = new InstancedEffectPool(this.viewport.scene);
     this.addUpdateHook((dt) => { try { this.fxPool.update(dt); } catch {} });
+    this.addUpdateHook((dt) => { try { this.animationLod.update(this.viewport.camera, dt); } catch {} });
     // Save-game bundling. Orchestrates the gameplay/inventory/state systems + player
     // transform into named localStorage slots. `this.gameplay`/`this.items`/`this.player`
     // resolve lazily at call time. Bake state is piggy-backed into PersistentGameState.
@@ -731,6 +739,8 @@ export class Engine {
       gpuParticles: this.gpuParticles,
       prefabs: this.prefabs,
       profiler: this.profiler,
+      qualityScaler: this.qualityScaler,
+      assetCache: this.assetCache,
       selection: this.selection,
       selectionChanged: () => this.syncGizmoToSelection(),
       gameplayFeatures: this.gameplayFeatures,

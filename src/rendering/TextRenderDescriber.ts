@@ -40,8 +40,8 @@ export class TextRenderDescriber {
   }
 
   static describeRenderProfile(policy: ProjectRenderPolicy): string {
-    const style = VisualStyleRegistry.get(policy.visualStyle);
-    const target = PerformanceTargetRegistry.get(policy.performanceTarget);
+    const style = VisualStyleRegistry.require(policy.visualStyle);
+    const target = PerformanceTargetRegistry.require(policy.performanceTarget);
 
     return [
       `=== MIX RENDER PROFILE ===`,
@@ -139,8 +139,8 @@ export class TextRenderDescriber {
     lines.push(
       ``,
       `Estimated Resource Impact:`,
-      `- Triangles: ${plan.sourceMetrics.triangles?.toLocaleString() ?? '?'} -> ${plan.estimatedResult.triangles?.toLocaleString() ?? '?'}`,
-      `- Vertices: ${plan.sourceMetrics.vertices?.toLocaleString() ?? '?'} -> ${plan.estimatedResult.vertices?.toLocaleString() ?? '?'}`,
+      `- Triangles: ${plan.sourceMetrics.triangles?.toLocaleString() ?? 'unavailable'} -> ${plan.estimatedResult.triangles?.toLocaleString() ?? 'unavailable'}`,
+      `- Vertices: ${plan.sourceMetrics.vertices?.toLocaleString() ?? 'unavailable'} -> ${plan.estimatedResult.vertices?.toLocaleString() ?? 'unavailable'}`,
       `- Est. Savings: ${plan.estimatedResult.estimatedSavingsPct ?? 0}%`,
     );
 
@@ -151,6 +151,7 @@ export class TextRenderDescriber {
     return [
       `=== PERFORMANCE EXPLANATION ===`,
       `Status: ${explanation.status}`,
+      `Frame Health: ${explanation.frameHealth} · Budget Risk: ${explanation.budgetRisk}`,
       explanation.summary,
       `Current Framerate: ${explanation.currentFps.toFixed(1)} FPS (Target: ${explanation.targetFps} FPS)`,
       `Frame Time: ${explanation.currentFrameMs} ms / ${explanation.frameBudgetMs} ms budget`,

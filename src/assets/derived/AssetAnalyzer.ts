@@ -135,8 +135,19 @@ export class AssetAnalyzer {
           }
 
           if (geom.morphAttributes && Object.keys(geom.morphAttributes).length > 0) {
-            for (const key of Object.keys(geom.morphAttributes)) {
-              morphTargetCount += geom.morphAttributes[key].length;
+            const morphChannelNames = Object.keys(geom.morphAttributes);
+            const channelMax = Math.max(...morphChannelNames.map(k => geom.morphAttributes[k]?.length ?? 0));
+            morphTargetCount += channelMax;
+            for (const key of morphChannelNames) {
+              const list = geom.morphAttributes[key];
+              if (Array.isArray(list)) {
+                for (const attr of list) {
+                  if (attr) {
+                    const bytesPerElem = attr.array instanceof Float32Array ? 4 : (attr.array instanceof Uint16Array ? 2 : 1);
+                    attributeMemoryBytes += attr.count * attr.itemSize * bytesPerElem;
+                  }
+                }
+              }
             }
           }
 

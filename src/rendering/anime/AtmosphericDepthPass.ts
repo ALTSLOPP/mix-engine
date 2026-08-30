@@ -26,6 +26,9 @@ const fragShader = /* glsl */ `
   uniform float nearDistance;
   uniform float midDistance;
   uniform float farDistance;
+  uniform float heightFalloff;
+  uniform float heightBase;
+  uniform float foregroundStrength;
   uniform float intensity;
   uniform float cameraNear;
   uniform float cameraFar;
@@ -49,14 +52,19 @@ const fragShader = /* glsl */ `
 
     float linearDist = linearizeDepth(rawDepth);
 
-    // Multi-stage atmospheric gradient
+    // Multi-stage atmospheric distance gradient
     float midFactor = smoothstep(nearDistance, midDistance, linearDist);
     float farFactor = smoothstep(midDistance, farDistance, linearDist);
 
-    vec3 atmColor = mix(midgroundTint, backgroundTint, farFactor);
-    float blendFactor = max(midFactor * 0.35, farFactor * 0.8) * intensity;
+    // Height atmospheric attenuation across the viewport, offset by heightBase
+    float heightFactor = clamp(1.0 - (vUv.y - heightBase) * heightFalloff * 2.0, 0.1, 1.8);
 
-    vec3 finalRgb = mix(baseColor.rgb, atmColor, clamp(blendFactor, 0.0, 1.0));
+    vec3 atmColor = mix(midgroundTint, backgroundTint, farFactor);
+    float blendFactor = max(midFactor * 0.35, farFactor * 0.8) * intensity * heightFactor;
+
+    // Foreground tinting weighted by foregroundStrength + distance atmospheric blending
+    vec3 tintedBase = mix(baseColor.rgb, baseColor.rgb * foregroundTint, foregroundStrength);
+    vec3 finalRgb = mix(tintedBase, atmColor, clamp(blendFactor, 0.0, 1.0));
     gl_FragColor = vec4(finalRgb, baseColor.a);
   }
 `;
@@ -71,6 +79,9 @@ export class AtmosphericDepthPass extends Pass {
     nearDistance: { value: 10.0 },
     midDistance: { value: 60.0 },
     farDistance: { value: 250.0 },
+    heightFalloff: { value: 0.25 },
+    heightBase: { value: 0.0 },
+    foregroundStrength: { value: 0.0 },
     intensity: { value: 0.6 },
     cameraNear: { value: 0.1 },
     cameraFar: { value: 1000.0 },
@@ -99,6 +110,16 @@ export class AtmosphericDepthPass extends Pass {
     this.uniforms.midgroundTint.value.set(mid);
     this.uniforms.backgroundTint.value.set(bg);
     this.uniforms.intensity.value = intensity;
+  }
+
+  setHeightFalloff(falloff: number, baseHeight = 0.0): void {
+    this.uniforms.heightFalloff.value = falloff;
+    this.uniforms.heightBase.value = baseHeight;
+  }
+
+  setForegroundTint(tint: THREE.ColorRepresentation, intensity = 0.0): void {
+    this.uniforms.foregroundTint.value.set(tint);
+    this.uniforms.foregroundStrength.value = intensity;
   }
 
   override render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget): void {

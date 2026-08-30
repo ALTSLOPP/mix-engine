@@ -2,13 +2,13 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import type { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
 import { SpeedLinesPass, ImpactFramePass } from './SpeedLinesPass';
 import { FsrUpscaler } from './FsrUpscaler';
 import { AtmosphericDepthPass } from './anime/AtmosphericDepthPass';
+import { AnimeTonemappingPass } from './anime/AnimeTonemappingPass';
 import type { VisualStyleDescriptor } from './profiles/VisualStyleRegistry';
 import {
   OutlinePass,
@@ -120,6 +120,7 @@ export class RenderPipeline {
   readonly filmGrainPass?: FilmGrainPass;
   readonly speedLinesPass: SpeedLinesPass;
   readonly impactFramePass: ImpactFramePass;
+  readonly tonemappingPass: AnimeTonemappingPass;
   private readonly smaaPass: SMAAPass;
   private readonly passes: Pass[] = [];
   private readonly renderer: THREE.WebGLRenderer;
@@ -310,8 +311,9 @@ export class RenderPipeline {
     this.addPass(this.speedLinesPass);
     this.addPass(this.impactFramePass);
 
-    // ACES tone map + sRGB conversion
-    this.addPass(new OutputPass());
+    // Selectable display tone mapping (ACES / MIX Anime / Neutral) + sRGB conversion
+    this.tonemappingPass = new AnimeTonemappingPass('mix_anime', renderer.toneMappingExposure ?? 1.0);
+    this.addPass(this.tonemappingPass);
 
     // SMAA
     this.smaaPass = new SMAAPass(size.x * pr, size.y * pr);
@@ -382,6 +384,10 @@ export class RenderPipeline {
   }
 
   applyVisualStyle(style: VisualStyleDescriptor): void {
+    if (this.tonemappingPass) {
+      this.tonemappingPass.setColorTransform(style.colorTransform);
+      this.tonemappingPass.setExposure(this.renderer.toneMappingExposure ?? 1.0);
+    }
     if (this.colorGradePass) {
       this.colorGradePass.enabled = style.saturation !== 1.0 || style.contrast !== 1.0 || style.brightness !== 1.0;
       this.colorGradePass.uniforms.saturation.value = style.saturation;

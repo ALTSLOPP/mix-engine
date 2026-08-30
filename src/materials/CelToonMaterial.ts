@@ -73,7 +73,7 @@ export interface CelToonMaterialParameters {
 }
 
 type LightingOverrides = Pick<CelToonMaterialParameters,
-  'shadowColor' | 'fillColor' | 'fillStrength' | 'rimColor' | 'rimIntensity' | 'rimPower'>;
+  'shadowColor' | 'fillColor' | 'fillStrength' | 'rimColor' | 'rimIntensity' | 'rimPower' | 'hairHighlightStrength'>;
 
 export class CelToonMaterial extends THREE.ShaderMaterial {
   surfaceMode: AnimeSurfaceMode;
@@ -104,6 +104,7 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
     }[surface];
 
     super({
+      fog: true,
       transparent: params.transparent ?? false,
       alphaTest: params.alphaTest ?? 0,
       opacity: params.opacity ?? 1,
@@ -125,6 +126,7 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
         uRimIntensity: { value: params.rimIntensity ?? 0.5 },
         uRimPower: { value: params.rimPower ?? 3.0 },
         uRoughness: { value: THREE.MathUtils.clamp(params.roughness ?? 0.5, 0, 1) },
+        uMetalness: { value: THREE.MathUtils.clamp(params.metalness ?? 0.0, 0, 1) },
         uLightDir: { value: new THREE.Vector3(0.5, 1.0, 0.4).normalize() },
         uSunDirection: { value: new THREE.Vector3(0.5, 1.0, 0.4).normalize() },
         uLightColor: { value: new THREE.Color(0xfff4e6) },
@@ -152,7 +154,7 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
         uHairHighlightColor: { value: hairHighlightColor },
         uHairHighlightStrength: { value: params.hairHighlightStrength ?? 0.6 },
         uHairHighlightWidth: { value: params.hairHighlightWidth ?? 0.15 },
-        uHairHighlightCenter: { value: params.hairHighlightCenter ?? params.hairHighlightShift ?? 0.5 },
+        uHairHighlightCenter: { value: params.hairHighlightCenter ?? 0.5 },
         uHairHighlightShift: { value: params.hairHighlightShift ?? 0.0 },
         uHairHighlightSoftness: { value: params.hairHighlightSoftness ?? 0.05 },
 
@@ -160,10 +162,11 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
         uEyeCatchlight: { value: params.eyeCatchlight !== false ? 1.0 : 0.0 },
         uEyeCatchlightStrength: { value: params.eyeCatchlightStrength ?? (params.eyeCatchlight !== false ? 1.0 : 0.0) },
         uEyeEmissiveStrength: { value: params.eyeEmissiveStrength ?? 0.2 },
-        uEyeReadabilityBoost: { value: params.eyeReadabilityBoost ?? params.eyeEmissiveStrength ?? 0.2 },
+        uEyeReadabilityBoost: { value: params.eyeReadabilityBoost ?? 0.2 },
       },
       vertexShader: /* glsl */ `
         #include <common>
+        #include <fog_pars_vertex>
         #include <morphtarget_pars_vertex>
         #include <skinning_pars_vertex>
         // Face axes are authored in mesh-local bind space, just like vertex positions.
@@ -205,9 +208,12 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
           vec4 mvPosition = viewMatrix * worldPosition;
           vViewDir = normalize(-mvPosition.xyz);
           gl_Position = projectionMatrix * mvPosition;
+          #include <fog_vertex>
         }
       `,
       fragmentShader: /* glsl */ `
+        #include <common>
+        #include <fog_pars_fragment>
         uniform vec3 uColor;
         uniform vec3 uShadowColor;
         uniform vec3 uFillColor;
@@ -223,6 +229,7 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
         uniform float uRimIntensity;
         uniform float uRimPower;
         uniform float uRoughness;
+        uniform float uMetalness;
         uniform vec3 uLightDir;
         uniform vec3 uLightColor;
         uniform float uLightIntensity;
@@ -244,11 +251,14 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
         varying vec3 vFaceRight;
         uniform float uHairHighlightStrength;
         uniform float uHairHighlightWidth;
+        uniform float uHairHighlightCenter;
         uniform float uHairHighlightShift;
         uniform float uHairHighlightSoftness;
 
         uniform float uEyeCatchlight;
+        uniform float uEyeCatchlightStrength;
         uniform float uEyeEmissiveStrength;
+        uniform float uEyeReadabilityBoost;
 
         varying vec2 vUv;
         varying vec3 vNormal;
@@ -313,7 +323,7 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
           }
 
           litFactor = clamp(litFactor, 0.0, 1.0);
-          vec3 shadowTinted = mix(uShadowColor * baseTex, baseTex, litFactor);
+          vec3 shadowTinted = mix(mix(baseTex, uShadowColor * baseTex, uShadowStrength), baseTex, litFactor);
           vec3 ambientFill = uFillColor * uFillStrength * (1.0 - litFactor);
           vec3 litColor = shadowTinted + ambientFill;
 
@@ -327,7 +337,7 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
           vec3 hairSpec = vec3(0.0);
           if (uSurfaceMode == 3) {
             float hairCoord = vUv.y + uHairHighlightShift;
-            float centerDist = abs(fract(hairCoord * 2.0) - 0.5);
+            float centerDist = abs(fract(hairCoord * 2.0) - uHairHighlightCenter);
             float band = 1.0 - smoothstep(uHairHighlightWidth - uHairHighlightSoftness, uHairHighlightWidth + uHairHighlightSoftness, centerDist);
             float viewFacing = max(0.0, dot(norm, vec3(0.0, 0.0, 1.0)));
             hairSpec = uHairHighlightColor * (band * uHairHighlightStrength * viewFacing * (litFactor * 0.5 + 0.5));
@@ -335,30 +345,32 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
 
           // --- SPECULAR / METAL HIGHLIGHT ---
           vec3 specHighlight = vec3(0.0);
-          if (uSurfaceMode == 6 || uHighlightIntensity > 0.0) {
+          if (uSurfaceMode == 6 || uHighlightIntensity > 0.0 || uMetalness > 0.0) {
             vec3 halfVec = normalize(viewLightDir + vViewDir);
             float NdotH = max(0.0, dot(norm, halfVec));
             float specPower = mix(32.0, 4.0, uRoughness);
             float spec = pow(NdotH, specPower);
             float stepSpec = step(uHighlightThreshold, spec);
-            specHighlight = uHighlightColor * (stepSpec * uHighlightIntensity);
+            vec3 specColor = mix(uHighlightColor, baseTex, uMetalness);
+            specHighlight = specColor * (stepSpec * uHighlightIntensity * (1.0 + uMetalness * 0.5));
           }
 
           // --- EYE READABILITY ---
           vec3 eyeBonus = vec3(0.0);
           if (uSurfaceMode == 4) {
-            eyeBonus = baseTex * uEyeEmissiveStrength;
+            eyeBonus = baseTex * (uEyeEmissiveStrength + uEyeReadabilityBoost * 0.5);
             if (uEyeCatchlight > 0.5) {
               vec3 halfVec = normalize(viewLightDir + vViewDir);
               float NdotH = max(0.0, dot(norm, halfVec));
               float catchlight = pow(NdotH, 64.0);
-              eyeBonus += vec3(catchlight * 0.8);
+              eyeBonus += vec3(catchlight * uEyeCatchlightStrength);
             }
           }
 
           vec3 finalColor = (litColor * uLightColor * (uLightIntensity * 0.6 + 0.4)) + rimLight + hairSpec + specHighlight + eyeBonus;
 
           gl_FragColor = vec4(finalColor, alpha);
+          #include <fog_fragment>
         }
       `,
     });
@@ -374,6 +386,7 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
       rimColor: params.rimColor,
       rimIntensity: params.rimIntensity,
       rimPower: params.rimPower,
+      hairHighlightStrength: params.hairHighlightStrength,
     };
     if (useSharedLighting) {
       this.updateSharedLighting();
@@ -404,6 +417,7 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
     if (p.rimColor !== undefined) this.uniforms.uRimColor.value.set(p.rimColor);
     if (p.rimIntensity !== undefined) this.uniforms.uRimIntensity.value = p.rimIntensity;
     if (p.rimPower !== undefined) this.uniforms.uRimPower.value = p.rimPower;
+    if (p.hairHighlightStrength !== undefined) this.uniforms.uHairHighlightStrength.value = p.hairHighlightStrength;
   }
 
   get color(): THREE.Color {
@@ -421,10 +435,11 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
   }
 
   get metalness(): number {
-    return this._metalness;
+    return this.uniforms.uMetalness ? this.uniforms.uMetalness.value : this._metalness;
   }
   set metalness(v: number) {
     this._metalness = v;
+    if (this.uniforms.uMetalness) this.uniforms.uMetalness.value = THREE.MathUtils.clamp(v, 0, 1);
   }
 
   setFaceSdf(tex: THREE.Texture, forward?: THREE.Vector3, right?: THREE.Vector3): this {
@@ -454,6 +469,10 @@ export class CelToonMaterial extends THREE.ShaderMaterial {
     this.uniforms.uRimColor.value.copy(ctx.rimColor);
     this.uniforms.uRimIntensity.value = ctx.rimIntensity;
     this.uniforms.uRimPower.value = ctx.rimPower;
+    this.uniforms.uHairHighlightColor.value.copy(ctx.hairHighlightColor);
+    if (this.lightingOverrides.hairHighlightStrength === undefined) {
+      this.uniforms.uHairHighlightStrength.value = ctx.hairHighlightStrength;
+    }
     this.applyLightingOverrides();
   }
 

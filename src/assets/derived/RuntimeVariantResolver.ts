@@ -28,6 +28,14 @@ export class RuntimeVariantResolver {
     this.pinnedVariants.delete(assetId);
   }
 
+  getPinnedVariant(assetId: string): string | undefined {
+    return this.pinnedVariants.get(assetId);
+  }
+
+  listPinned(): Record<string, string> {
+    return Object.fromEntries(this.pinnedVariants.entries());
+  }
+
   /**
    * Resolves an asset for a target profile.
    * If derived variant exists in cache, returns it; otherwise safely falls back to source.
@@ -44,6 +52,14 @@ export class RuntimeVariantResolver {
     // Check pinned override
     if (this.pinnedVariants.has(assetId)) {
       const pinKey = this.pinnedVariants.get(assetId)!;
+      if (pinKey === 'source') {
+        return {
+          data: sourceData,
+          variantKey: 'source',
+          isDerived: false,
+          sourceFallback: false,
+        };
+      }
       const cached = this.cache.get<T>(pinKey);
       if (cached) {
         return {

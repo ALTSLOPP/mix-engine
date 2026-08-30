@@ -13,6 +13,7 @@ src-tauri/gen/
 
 # Local runtime captures, audit output, and generated deliverables
 artifacts/
+!artifacts/perf-metrics.json
 stdout/
 .codex-artifacts/
 .codex-gameplay-audit/

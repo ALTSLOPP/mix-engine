@@ -12,10 +12,10 @@ export interface TextureOptimizeOptions {
 
 export class TextureOptimizer {
   /**
-   * Determine exact color space based on texture name and semantic usage.
+   * Determine exact color space based on texture name, semantic usage, and source colorSpace.
    * NEVER apply sRGB transformations to data/normal/SDF maps!
    */
-  static classifyColorSpace(nameOrSemantic: string): THREE.ColorSpace {
+  static classifyColorSpace(nameOrSemantic: string, fallbackColorSpace?: THREE.ColorSpace | string): THREE.ColorSpace {
     const s = nameOrSemantic.toLowerCase();
     if (
       s.includes('normal') ||
@@ -33,7 +33,17 @@ export class TextureOptimizer {
     ) {
       return THREE.NoColorSpace; // Linear data
     }
-    return THREE.SRGBColorSpace; // Color data (baseColor, diffuse, emissive)
+    if (
+      s.includes('basecolor') ||
+      s.includes('diffuse') ||
+      s.includes('albedo') ||
+      s.includes('emissive') ||
+      s.includes('color') ||
+      s.includes('tint')
+    ) {
+      return THREE.SRGBColorSpace; // Color data
+    }
+    return (fallbackColorSpace as THREE.ColorSpace) ?? THREE.SRGBColorSpace;
   }
 
   /**
@@ -43,19 +53,18 @@ export class TextureOptimizer {
     if (![width, height, maxDimension].every(n => Number.isFinite(n) && n > 0)) {
       throw new Error('Texture dimensions must be finite and positive.');
     }
-    maxDimension = Math.max(1, Math.floor(maxDimension));
     if (width <= maxDimension && height <= maxDimension) {
       return { width, height };
     }
     const aspect = width / height;
-    if (width >= height) {
-      const w = maxDimension;
-      const h = Math.max(1, Math.round(maxDimension / aspect));
-      return { width: w, height: h };
+    if (width > height) {
+      const newW = maxDimension;
+      const newH = Math.max(1, Math.round(maxDimension / aspect));
+      return { width: newW, height: newH };
     } else {
-      const h = maxDimension;
-      const w = Math.max(1, Math.round(maxDimension * aspect));
-      return { width: w, height: h };
+      const newH = maxDimension;
+      const newW = Math.max(1, Math.round(maxDimension * aspect));
+      return { width: newW, height: newH };
     }
   }
 
@@ -67,7 +76,7 @@ export class TextureOptimizer {
     const maxDim = opts.maxDimension ?? 1024;
     const name = opts.semanticHint ?? sourceTexture.name ?? '';
 
-    clone.colorSpace = this.classifyColorSpace(name);
+    clone.colorSpace = this.classifyColorSpace(name, sourceTexture.colorSpace);
     clone.generateMipmaps = opts.generateMipmaps ?? true;
     clone.minFilter = clone.generateMipmaps ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
     clone.magFilter = THREE.LinearFilter;

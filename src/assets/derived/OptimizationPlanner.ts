@@ -63,6 +63,7 @@ export class OptimizationPlanner {
   static planMeshOptimization(params: {
     assetId: string;
     category?: SemanticCategory;
+    importance?: 'hero' | 'standard' | 'crowd' | 'background';
     overrides?: OptimizationOverrides;
     targetProfile?: PerformanceTargetId | string;
     meshMetrics?: MeshMetrics;
@@ -85,7 +86,7 @@ export class OptimizationPlanner {
       'prop'
     );
 
-    const importance = overrides.importance ?? (
+    const importance = params.importance ?? overrides.importance ?? (
       category === 'hero_character' || category === 'cinematic' ? 'hero' :
       category === 'crowd_character' ? 'crowd' :
       'standard'
@@ -124,10 +125,10 @@ export class OptimizationPlanner {
       };
     }
 
-    const srcTris = params.meshMetrics?.triangleCount ?? 10000;
-    const srcVerts = params.meshMetrics?.vertexCount ?? 8000;
-    const srcTexBytes = params.textureMetrics?.estimatedGpuMemoryBytes ?? 4194304;
-    const srcKeys = params.animMetrics?.keyCount ?? 2000;
+    const srcTris = params.meshMetrics?.triangleCount;
+    const srcVerts = params.meshMetrics?.vertexCount;
+    const srcTexBytes = params.textureMetrics?.estimatedGpuMemoryBytes;
+    const srcKeys = params.animMetrics?.keyCount;
 
     let estTris = srcTris;
     let estVerts = srcVerts;
@@ -138,23 +139,22 @@ export class OptimizationPlanner {
     if (overrides.never_simplify) {
       overridesApplied.push('never_simplify');
       operations.push('Retain original base geometry (never_simplify override active)');
-    } else {
-      operations.push('Validate geometry and prune unused attributes');
-      operations.push('Optimize vertex fetch & index cache ordering');
+    } else if (params.meshMetrics) {
+      operations.push('Optimize vertex fetch & index cache ordering with meshoptimizer');
 
       if (targetProfile === 'ps3_plus_500' || targetProfile === 'balanced') {
-        operations.push('Quantize vertex normals and UVs');
-        estVerts = Math.round(srcVerts * 0.9);
-
         if (importance === 'crowd' || importance === 'background') {
-          operations.push('Generate aggressive LOD1 (50% tris) and LOD2 (25% tris) variants');
-          estTris = Math.round(srcTris * 0.6);
+          operations.push('Generate aggressive LOD1 (50% tris) and LOD2 (25% tris) variants with meshoptimizer');
+          if (srcTris !== undefined) estTris = Math.round(srcTris * 0.5);
+          if (srcVerts !== undefined) estVerts = Math.round(srcVerts * 0.55);
         } else if (importance === 'hero') {
-          operations.push('Generate gentle LOD1 (70% tris) variant with silhouette preservation');
-          estTris = Math.round(srcTris * 0.85);
+          operations.push('Generate gentle LOD1 (75% tris) variant with silhouette preservation');
+          if (srcTris !== undefined) estTris = Math.round(srcTris * 0.75);
+          if (srcVerts !== undefined) estVerts = Math.round(srcVerts * 0.8);
         } else {
           operations.push('Generate LOD1 (60% tris) and LOD2 (35% tris) variants');
-          estTris = Math.round(srcTris * 0.7);
+          if (srcTris !== undefined) estTris = Math.round(srcTris * 0.6);
+          if (srcVerts !== undefined) estVerts = Math.round(srcVerts * 0.65);
         }
       }
     }
@@ -175,17 +175,17 @@ export class OptimizationPlanner {
     if (overrides.never_downscale_texture) {
       overridesApplied.push('never_downscale_texture');
       operations.push('Preserve original texture resolution (never_downscale_texture override active)');
-    } else {
+    } else if (params.textureMetrics) {
       if (targetProfile === 'ps3_plus_500') {
         if (importance === 'hero') {
-          operations.push('Cap hero textures at 1024px, generating mipmaps and Linear sRGB tags');
-          estTexBytes = Math.min(srcTexBytes, 1024 * 1024 * 4 * 1.33);
+          operations.push('Downscale hero textures to 1024px, generate mipmaps and classify color spaces');
+          if (srcTexBytes !== undefined) estTexBytes = Math.min(srcTexBytes, 1024 * 1024 * 4 * 1.33);
         } else if (importance === 'crowd' || importance === 'background') {
-          operations.push('Cap crowd textures at 512px, generating mipmaps');
-          estTexBytes = Math.min(srcTexBytes, 512 * 512 * 4 * 1.33);
+          operations.push('Downscale crowd textures to 512px, generate mipmaps and classify color spaces');
+          if (srcTexBytes !== undefined) estTexBytes = Math.min(srcTexBytes, 512 * 512 * 4 * 1.33);
         } else {
-          operations.push('Cap textures at 1024px with semantic color space tagging');
-          estTexBytes = Math.min(srcTexBytes, 1024 * 1024 * 4 * 1.33);
+          operations.push('Downscale textures to 1024px with semantic color space tagging');
+          if (srcTexBytes !== undefined) estTexBytes = Math.min(srcTexBytes, 1024 * 1024 * 4 * 1.33);
         }
       }
     }
@@ -198,16 +198,29 @@ export class OptimizationPlanner {
 
     if (params.animMetrics) {
       operations.push('Prune constant animation tracks');
-      operations.push('Reduce redundant keyframes using quaternion rotation error tolerance (0.002 rad)');
-      estKeys = Math.round(srcKeys * 0.55);
+      operations.push('Reduce redundant keyframes using error-bounded quaternion tolerance (0.002 rad)');
+      if (srcKeys !== undefined) estKeys = Math.round(srcKeys * 0.55);
 
       if (targetProfile === 'ps3_plus_500' && importance !== 'hero') {
         operations.push('Enable distance-based animation LOD (30Hz midground, 15Hz background)');
       }
     }
 
-    const totalSrc = srcTris * 32 + srcTexBytes + srcKeys * 16;
-    const totalEst = estTris * 32 + estTexBytes + estKeys * 16;
+    let totalSrc = 0;
+    let totalEst = 0;
+    if (srcTris !== undefined && estTris !== undefined) {
+      totalSrc += srcTris * 32;
+      totalEst += estTris * 32;
+    }
+    if (srcTexBytes !== undefined && estTexBytes !== undefined) {
+      totalSrc += srcTexBytes;
+      totalEst += estTexBytes;
+    }
+    if (srcKeys !== undefined && estKeys !== undefined) {
+      totalSrc += srcKeys * 16;
+      totalEst += estKeys * 16;
+    }
+
     const savingsPct = totalSrc > 0 ? Math.max(0, Math.round(((totalSrc - totalEst) / totalSrc) * 100)) : 0;
 
     return {

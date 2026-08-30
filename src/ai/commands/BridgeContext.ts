@@ -130,6 +130,8 @@ export interface CmdCtx {
   gpuParticles?: import('../../vfx/GpuParticleSystem').GpuParticleSystem;
   prefabs?: import('../../engine/PrefabManager').PrefabManager;
   profiler?: import('../../diagnostics/FrameProfiler').FrameProfiler;
+  qualityScaler?: import('../../rendering/QualityScaler').QualityScaler;
+  assetCache?: import('../../animation/AssetCache').AssetCache;
   selection?: import('../../editor/SelectionManager').SelectionManager;
   selectionChanged?: () => void;
   gameplayFeatures?: import('../../features/gameplay/GameplayFeatureManager').GameplayFeatureManager;

@@ -54,9 +54,12 @@ const DEFAULT_RATIOS = [0.5, 0.2];
 export class LODSystem {
   private readonly records = new Map<EntityId, LODRecord>();
   private readonly camera: THREE.Camera;
-  private readonly sceneManager: SceneManager;
+  private readonly sceneManager?: SceneManager;
   private readonly modifier = new SimplifyModifier();
   private enabled = false;
+  private distanceBias = 1.0;
+  private readonly _camPos = new THREE.Vector3();
+  private readonly _lodPos = new THREE.Vector3();
   /** Per-entity destroy callback — SceneManager calls this via its onDestroy hook so
    *  a destroyed entity automatically cleans up its LOD record (and the simplified
    *  geometries it owns). Without this, the records map would grow indefinitely as
@@ -65,14 +68,23 @@ export class LODSystem {
     if (this.records.has(entityId)) this.unregisterEntity(entityId);
   };
 
-  constructor(camera: THREE.Camera, sceneManager: SceneManager) {
+  constructor(camera: THREE.Camera, sceneManager?: SceneManager) {
     this.camera = camera;
     this.sceneManager = sceneManager;
-    sceneManager.onEntityDestroyed = this.onEntityDestroyed;
+    if (sceneManager) sceneManager.onEntityDestroyed = this.onEntityDestroyed;
   }
 
   get isEnabled(): boolean { return this.enabled; }
   get registeredCount(): number { return this.records.size; }
+  get currentDistanceBias(): number { return this.distanceBias; }
+
+  getDistanceBias(): number {
+    return this.distanceBias;
+  }
+
+  setDistanceBias(bias: number): void {
+    this.distanceBias = Math.max(0.1, Math.min(10.0, bias));
+  }
 
   /** Enable the system — starts updating LODs every frame. */
   enable(): void { this.enabled = true; }
@@ -98,6 +110,7 @@ export class LODSystem {
       console.warn(`[LODSystem] entity ${entityId} already registered`);
       return 0;
     }
+    if (!this.sceneManager) { console.warn(`[LODSystem] entity ${entityId}: no sceneManager`); return 0; }
     const rb = this.sceneManager.getRigidBody(entityId);
     if (!rb) { console.warn(`[LODSystem] entity ${entityId} has no rigid body`); return 0; }
     if (rb.mesh.userData.lodExclude) return 0;
@@ -184,9 +197,25 @@ export class LODSystem {
   /** Per-frame update — call from the engine loop before the cull. */
   update(): void {
     if (!this.enabled || this.records.size === 0) return;
+    const bias = this.distanceBias;
     for (const rec of this.records.values()) {
       for (const lod of rec.lods) {
-        lod.update(this.camera);
+        if (bias === 1.0) {
+          lod.update(this.camera);
+        } else {
+          this.camera.getWorldPosition(this._camPos);
+          lod.getWorldPosition(this._lodPos);
+          const dist = this._camPos.distanceTo(this._lodPos) * bias;
+          let activeLevel = 0;
+          for (let i = 1; i < lod.levels.length; i++) {
+            if (dist >= lod.levels[i].distance) {
+              activeLevel = i;
+            }
+          }
+          for (let i = 0; i < lod.levels.length; i++) {
+            lod.levels[i].object.visible = (i === activeLevel);
+          }
+        }
       }
     }
   }
@@ -197,7 +226,7 @@ export class LODSystem {
     }
     // Detach the destroy callback so a later LODSystem with the same SceneManager
     // doesn't inherit a stale handler.
-    if (this.sceneManager.onEntityDestroyed === this.onEntityDestroyed) {
+    if (this.sceneManager?.onEntityDestroyed === this.onEntityDestroyed) {
       this.sceneManager.onEntityDestroyed = undefined;
     }
   }

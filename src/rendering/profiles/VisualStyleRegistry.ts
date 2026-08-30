@@ -5,7 +5,7 @@
  * from performance targets or asset optimization policies.
  */
 
-export type VisualStyleId =
+export type BuiltInVisualStyleId =
   | 'mix_anime_neutral'
   | 'mix_anime_shonen'
   | 'mix_anime_warm'
@@ -14,6 +14,8 @@ export type VisualStyleId =
   | 'mix_anime_neon'
   | 'realistic'
   | 'custom';
+
+export type VisualStyleId = BuiltInVisualStyleId | (string & {});
 
 export type AnimeColorTransformMode = 'mix_anime' | 'aces' | 'neutral';
 
@@ -229,14 +231,48 @@ export const DEFAULT_VISUAL_STYLES: Record<VisualStyleId, VisualStyleDescriptor>
 export class VisualStyleRegistry {
   private static readonly customStyles = new Map<string, VisualStyleDescriptor>();
 
+  static has(id: string): boolean {
+    return this.customStyles.has(id) || id in DEFAULT_VISUAL_STYLES;
+  }
+
   static get(id: VisualStyleId | string): VisualStyleDescriptor {
     if (this.customStyles.has(id)) {
       return { ...this.customStyles.get(id)! };
     }
-    if (id in DEFAULT_VISUAL_STYLES) {
-      return { ...DEFAULT_VISUAL_STYLES[id as VisualStyleId] };
+    if (Object.prototype.hasOwnProperty.call(DEFAULT_VISUAL_STYLES, id)) {
+      return { ...DEFAULT_VISUAL_STYLES[id as BuiltInVisualStyleId] };
     }
     return { ...DEFAULT_VISUAL_STYLES.mix_anime_neutral };
+  }
+
+  static require(id: VisualStyleId | string): VisualStyleDescriptor {
+    if (!this.has(id)) {
+      const suggestions = this.getSuggestions(id);
+      const hint = suggestions.length > 0 ? ` Did you mean: ${suggestions.join(', ')}?` : '';
+      throw new Error(`Unknown visual style '${id}'.${hint}`);
+    }
+    return this.get(id);
+  }
+
+  static getSuggestions(id: string, limit = 3): string[] {
+    const query = id.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const all = this.list().map(s => s.id);
+    const scored = all.map(candidate => {
+      const candClean = candidate.toLowerCase().replace(/[^a-z0-9]/g, '');
+      let score = 0;
+      if (candidate.startsWith(id) || id.startsWith(candidate)) score += 10;
+      if (candClean.includes(query) || query.includes(candClean)) score += 5;
+      // Character overlap
+      for (const char of query) {
+        if (candClean.includes(char)) score += 1;
+      }
+      return { candidate, score };
+    });
+    return scored
+      .filter(s => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(s => s.candidate);
   }
 
   static list(): VisualStyleDescriptor[] {
@@ -262,7 +298,7 @@ export class VisualStyleRegistry {
   }
 
   static describe(id: VisualStyleId | string): string {
-    const style = this.get(id);
+    const style = this.require(id);
     return [
       `Visual Style: ${style.name} (${style.id})`,
       `Description: ${style.description}`,

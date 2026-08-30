@@ -97,6 +97,7 @@ export class AnimeMaterialFamily {
 
   /**
    * Automatically convert standard meshes in a character hierarchy to anime materials.
+   * Idempotent: snapshots original materials so conversion can be cleanly reverted.
    */
   static applyToCharacter(root: THREE.Object3D, opts: AnimeCharacterMaterialOptions = {}): { converted: number; materials: CelToonMaterial[] } {
     let converted = 0;
@@ -105,6 +106,10 @@ export class AnimeMaterialFamily {
     root.traverse((obj) => {
       if ((obj as THREE.Mesh).isMesh) {
         const mesh = obj as THREE.Mesh;
+        if (!mesh.userData.__originalMaterials) {
+          mesh.userData.__originalMaterials = Array.isArray(mesh.material) ? [...mesh.material] : mesh.material;
+        }
+
         const convert = (oldMat: THREE.Material): CelToonMaterial => {
           const matName = (oldMat?.name || '').toLowerCase();
           // A slot's semantic name takes precedence over the compound mesh name.
@@ -131,6 +136,20 @@ export class AnimeMaterialFamily {
             surface = 'skin';
             color = opts.skinColor;
           }
+
+          // If already a CelToonMaterial, reconfigure in-place
+          if (oldMat instanceof CelToonMaterial) {
+            oldMat.setSurface(surface);
+            if (color) oldMat.color.set(color);
+            if (opts.shadowTint) oldMat.setLightingOverrides({ shadowColor: opts.shadowTint });
+            if (opts.rimIntensity !== undefined) oldMat.setLightingOverrides({ rimIntensity: opts.rimIntensity });
+            if (surface === 'face' && opts.faceSdfMap) oldMat.setFaceSdf(opts.faceSdfMap);
+            if (opts.hairHighlightStrength !== undefined) oldMat.uniforms.uHairHighlightStrength.value = opts.hairHighlightStrength;
+            materials.push(oldMat);
+            converted++;
+            return oldMat;
+          }
+
           const map = (oldMat as any)?.map ?? null;
           const oldColor = (oldMat as any)?.color;
 
@@ -156,11 +175,34 @@ export class AnimeMaterialFamily {
           converted++;
           return newMat;
         };
+
         mesh.material = Array.isArray(mesh.material) ? mesh.material.map(convert) : convert(mesh.material);
       }
     });
 
     return { converted, materials };
+  }
+
+  /**
+   * Revert converted character meshes back to their original pre-anime materials.
+   */
+  static revertCharacter(root: THREE.Object3D): { reverted: number } {
+    let reverted = 0;
+    root.traverse((obj) => {
+      if ((obj as THREE.Mesh).isMesh) {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.userData.__originalMaterials) {
+          const current = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const m of current) {
+            if (m instanceof CelToonMaterial) m.dispose();
+          }
+          mesh.material = mesh.userData.__originalMaterials;
+          delete mesh.userData.__originalMaterials;
+          reverted++;
+        }
+      }
+    });
+    return { reverted };
   }
 
   /**
