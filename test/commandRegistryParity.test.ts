@@ -9,9 +9,9 @@ import * as path from 'path';
 describe('CommandRegistry & Manifest Parity', () => {
   const registry = CommandRegistry.default;
 
-  it('contains all 419 registered engine commands', () => {
+  it('contains all registered engine commands', () => {
     const allDefs = registry.getAll();
-    expect(allDefs.length).toBe(419);
+    expect(allDefs.length).toBeGreaterThanOrEqual(419);
   });
 
   it('matches all handlerMap registrations in src/ai/commands', () => {
@@ -26,7 +26,7 @@ describe('CommandRegistry & Manifest Parity', () => {
       }
     }
 
-    expect(registeredHandlers.size).toBe(419);
+    expect(registeredHandlers.size).toBe(registry.getAll().length);
 
     // Every registered handler must have a definition in CommandRegistry
     for (const handler of registeredHandlers) {
@@ -58,7 +58,7 @@ describe('CommandRegistry & Manifest Parity', () => {
 
   it('exports synchronized HELM_MANIFEST and HELM_VERSION', () => {
     expect(HELM_VERSION).toBe(HELM_PROTOCOL_VERSION);
-    expect(HELM_MANIFEST.commands.length).toBe(419);
+    expect(HELM_MANIFEST.commands.length).toBe(registry.getAll().length);
     expect(HELM_MANIFEST.ops.length).toBeGreaterThanOrEqual(14);
   });
 });

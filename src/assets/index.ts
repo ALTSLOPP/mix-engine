@@ -1,5 +1,5 @@
 /**
- * Assets Module — Sidecar metadata, asset database, dependency graph, and cooker.
+ * Assets Module — Sidecar metadata, asset database, dependency graph, cooker, and derived asset pipeline.
  */
 
 export * from './SidecarMetadata';
@@ -9,3 +9,4 @@ export * from './ScaleNormalizer';
 export * from './SemanticAssetRegistry';
 export * from './compoundCollider';
 export * from './proceduralWeathering';
+export * from './derived';

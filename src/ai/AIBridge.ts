@@ -338,6 +338,26 @@ export type AICommand =
    *  Idempotent; native vertex colors (foliage) survive. */
   | { type: 'bake_flush' }
 
+  // --- MIX Anime Styles, Performance Targets & Derived Optimization ---
+  | { type: 'render_style_list' }
+  | { type: 'render_style_get'; styleId: string }
+  | { type: 'render_style_apply'; styleId: string }
+  | { type: 'render_style_describe'; styleId: string }
+  | { type: 'render_target_list' }
+  | { type: 'render_target_get'; targetId: string }
+  | { type: 'render_target_apply'; targetId: string }
+  | { type: 'render_target_describe'; targetId: string }
+  | { type: 'render_resolution_status' }
+  | { type: 'render_capabilities' }
+  | { type: 'render_budget_report'; targetFps?: number }
+  | { type: 'render_explain'; targetFps?: number }
+  | { type: 'anime_material_apply'; entityId: EntityId; skinColor?: string; hairColor?: string; eyeColor?: string; clothColor?: string; hairHighlightStrength?: number; rimIntensity?: number; shadowTint?: string }
+  | { type: 'anime_material_configure'; entityId: EntityId; surface?: string; shadowThreshold?: number; shadowSoftness?: number; shadowColor?: string; rimIntensity?: number; hairHighlightStrength?: number }
+  | { type: 'anime_material_describe'; entityId: EntityId }
+  | { type: 'asset_analyze'; assetId?: string; entityId?: EntityId }
+  | { type: 'asset_optimize_plan'; assetId?: string; entityId?: EntityId; category?: any; overrides?: any; targetProfile?: string }
+  | { type: 'asset_variant_list' }
+
   // --- VFX ---
   | { type: 'spawn_vfx'; preset: VfxPresetName; x: number; y: number; z: number; duration?: number; loop?: boolean; maxParticles?: number }
   | { type: 'burst_vfx'; preset: VfxPresetName; x: number; y: number; z: number; count?: number }

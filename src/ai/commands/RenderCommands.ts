@@ -1,6 +1,15 @@
 import type { CommandMap, CmdCtx } from './BridgeContext';
 import * as THREE from 'three';
 import type { AICommand } from '../AIBridge';
+import { VisualStyleRegistry } from '../../rendering/profiles/VisualStyleRegistry';
+import { PerformanceTargetRegistry } from '../../rendering/profiles/PerformanceTargetRegistry';
+import { AnimeMaterialFamily } from '../../materials/AnimeMaterialFamily';
+import { CelToonMaterial } from '../../materials/CelToonMaterial';
+import { AssetAnalyzer } from '../../assets/derived/AssetAnalyzer';
+import { OptimizationPlanner } from '../../assets/derived/OptimizationPlanner';
+import { DerivedVariantCache } from '../../assets/derived/DerivedVariantCache';
+import { PerformanceExplainer, type SceneRenderStats } from '../../rendering/PerformanceExplainer';
+import { TextRenderDescriber } from '../../rendering/TextRenderDescriber';
 
 export function register(map: CommandMap, ctx: CmdCtx): void {
   map.set('set_time_of_day', (cmd: Extract<AICommand, { type: 'set_time_of_day' }>) => {
@@ -48,6 +57,249 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
   map.set('set_shadow_strategy', (cmd: Extract<AICommand, { type: 'set_shadow_strategy' }>) => {
     ctx.viewport.setShadowStrategy(cmd.strategy);
     ctx.setQueryResult({ strategy: cmd.strategy });
+  });
+
+  // --- Visual Style Commands ---
+  map.set('render_style_list', () => {
+    ctx.setQueryResult({ ok: true, styles: VisualStyleRegistry.list() });
+  });
+
+  map.set('render_style_get', (cmd: any) => {
+    const style = VisualStyleRegistry.get(cmd.styleId);
+    ctx.setQueryResult({ ok: true, style });
+  });
+
+  map.set('render_style_apply', (cmd: any) => {
+    ctx.viewport.applyVisualStyle(cmd.styleId);
+    const style = VisualStyleRegistry.get(cmd.styleId);
+    ctx.setQueryResult({ ok: true, appliedStyle: style.id, colorTransform: style.colorTransform });
+  });
+
+  map.set('render_style_describe', (cmd: any) => {
+    const desc = VisualStyleRegistry.describe(cmd.styleId);
+    ctx.setQueryResult({ ok: true, description: desc });
+  });
+
+  // --- Performance Target Commands ---
+  map.set('render_target_list', () => {
+    ctx.setQueryResult({ ok: true, targets: PerformanceTargetRegistry.list() });
+  });
+
+  map.set('render_target_get', (cmd: any) => {
+    const target = PerformanceTargetRegistry.get(cmd.targetId);
+    ctx.setQueryResult({ ok: true, target });
+  });
+
+  map.set('render_target_apply', (cmd: any) => {
+    ctx.viewport.applyPerformanceTarget(cmd.targetId);
+    const target = PerformanceTargetRegistry.get(cmd.targetId);
+    const res = ctx.viewport.getRenderResolution();
+    ctx.setQueryResult({
+      ok: true,
+      requestedTarget: cmd.targetId,
+      activeTarget: target.id,
+      targetFps: target.targetFps,
+      internalResolution: [res.internalWidth, res.internalHeight],
+      outputResolution: [res.outputWidth, res.outputHeight],
+      fsrEnabled: target.fsrEnabled,
+      fsrSharpness: target.fsrSharpness,
+    });
+  });
+
+  map.set('render_target_describe', (cmd: any) => {
+    const desc = PerformanceTargetRegistry.describe(cmd.targetId);
+    ctx.setQueryResult({ ok: true, description: desc });
+  });
+
+  // --- Render Status & Capabilities ---
+  map.set('render_resolution_status', () => {
+    const res = ctx.viewport.getRenderResolution();
+    const settings = ctx.viewport.getResolutionSettings();
+    ctx.setQueryResult({
+      ok: true,
+      internalWidth: res.internalWidth,
+      internalHeight: res.internalHeight,
+      outputWidth: res.outputWidth,
+      outputHeight: res.outputHeight,
+      fsrEnabled: settings.fsrEnabled,
+      fsrSharpness: settings.fsrSharpness,
+      renderScale: settings.renderScale,
+    });
+  });
+
+  map.set('render_capabilities', () => {
+    const caps = ctx.viewport.renderer.capabilities;
+    ctx.setQueryResult({
+      ok: true,
+      webgl2: caps.isWebGL2,
+      maxTextureSize: caps.maxTextureSize,
+      maxCubemapSize: caps.maxCubemapSize,
+      maxAttributes: caps.maxAttributes,
+      maxVertexUniforms: caps.maxVertexUniforms,
+      fsr1: true,
+      meshoptDecode: true,
+      ktx2Decode: true,
+      assetCooking: {
+        meshOptimization: true,
+        textureTranscode: true,
+        animationLod: true,
+      },
+    });
+  });
+
+  // --- Budget Report & Explanation ---
+  map.set('render_budget_report', (cmd: any) => {
+    const res = ctx.viewport.getRenderResolution();
+    const settings = ctx.viewport.getResolutionSettings();
+    const frame = ctx.viewport.pipeline.getLastFrameMetrics();
+    if (!frame) {
+      ctx.setQueryResult({ ok: false, error: 'No completed render frame is available yet.' });
+      return;
+    }
+    const stats: SceneRenderStats = {
+      internalWidth: res.internalWidth,
+      internalHeight: res.internalHeight,
+      outputWidth: res.outputWidth,
+      outputHeight: res.outputHeight,
+      fsrEnabled: settings.fsrEnabled,
+      rcasSharpness: settings.fsrSharpness,
+      drawCalls: frame.drawCalls,
+      visibleTriangles: frame.triangles,
+      totalGeometries: frame.geometries,
+      totalTextures: frame.textures,
+      shadowCasters: (ctx.viewport.shadow as any)?.cascades?.length ?? 1,
+    };
+    const explanation = PerformanceExplainer.explain(stats, cmd.targetFps ?? 60);
+    ctx.setQueryResult({ ok: true, report: explanation, formatted: PerformanceExplainer.formatReport(explanation) });
+  });
+
+  map.set('render_explain', (cmd: any) => {
+    const res = ctx.viewport.getRenderResolution();
+    const settings = ctx.viewport.getResolutionSettings();
+    const frame = ctx.viewport.pipeline.getLastFrameMetrics();
+    if (!frame) {
+      ctx.setQueryResult({ ok: false, error: 'No completed render frame is available yet.' });
+      return;
+    }
+    const stats: SceneRenderStats = {
+      internalWidth: res.internalWidth,
+      internalHeight: res.internalHeight,
+      outputWidth: res.outputWidth,
+      outputHeight: res.outputHeight,
+      fsrEnabled: settings.fsrEnabled,
+      rcasSharpness: settings.fsrSharpness,
+      drawCalls: frame.drawCalls,
+      visibleTriangles: frame.triangles,
+      totalGeometries: frame.geometries,
+      totalTextures: frame.textures,
+    };
+    const explanation = PerformanceExplainer.explain(stats, cmd.targetFps ?? 60);
+    ctx.setQueryResult({ ok: true, explanation: PerformanceExplainer.formatReport(explanation) });
+  });
+
+  // --- Anime Material Commands ---
+  map.set('anime_material_apply', (cmd: any) => {
+    const rb = ctx.sceneManager.getComponent<any>(cmd.entityId, 'rigidBody');
+    const obj = rb?.mesh;
+    if (!obj) {
+      ctx.setQueryResult({ ok: false, error: `Entity ${cmd.entityId} not found or has no mesh object.` });
+      return;
+    }
+    const res = AnimeMaterialFamily.applyToCharacter(obj, {
+      skinColor: cmd.skinColor,
+      hairColor: cmd.hairColor,
+      eyeColor: cmd.eyeColor,
+      clothColor: cmd.clothColor,
+      hairHighlightStrength: cmd.hairHighlightStrength,
+      rimIntensity: cmd.rimIntensity,
+      shadowTint: cmd.shadowTint,
+      lightingContext: ctx.viewport.animeLighting,
+    });
+    ctx.setQueryResult({ ok: true, entityId: cmd.entityId, materialsConverted: res.converted });
+  });
+
+  map.set('anime_material_configure', (cmd: any) => {
+    const rb = ctx.sceneManager.getComponent<any>(cmd.entityId, 'rigidBody');
+    const obj = rb?.mesh;
+    if (!obj) {
+      ctx.setQueryResult({ ok: false, error: `Entity ${cmd.entityId} not found or has no mesh object.` });
+      return;
+    }
+    let configured = 0;
+    obj.traverse((child: THREE.Object3D) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.material) {
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const m of mats) {
+          if (m instanceof CelToonMaterial) {
+            if (cmd.surface) m.setSurface(cmd.surface);
+            if (cmd.shadowThreshold !== undefined) m.uniforms.uShadowThreshold.value = cmd.shadowThreshold;
+            if (cmd.shadowSoftness !== undefined) m.uniforms.uShadowSoftness.value = cmd.shadowSoftness;
+            if (cmd.shadowColor !== undefined) m.setLightingOverrides({ shadowColor: cmd.shadowColor });
+            if (cmd.rimIntensity !== undefined) m.setLightingOverrides({ rimIntensity: cmd.rimIntensity });
+            if (cmd.hairHighlightStrength !== undefined) m.uniforms.uHairHighlightStrength.value = cmd.hairHighlightStrength;
+            configured++;
+          }
+        }
+      }
+    });
+    ctx.setQueryResult({ ok: true, entityId: cmd.entityId, configuredMaterials: configured });
+  });
+
+  map.set('anime_material_describe', (cmd: any) => {
+    const rb = ctx.sceneManager.getComponent<any>(cmd.entityId, 'rigidBody');
+    const obj = rb?.mesh;
+    if (!obj) {
+      ctx.setQueryResult({ ok: false, error: `Entity ${cmd.entityId} not found or has no mesh object.` });
+      return;
+    }
+    const descriptions: string[] = [];
+    obj.traverse((child: THREE.Object3D) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.material) {
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const m of mats) {
+          if (m instanceof CelToonMaterial) {
+            descriptions.push(`[Mesh: ${mesh.name || 'unnamed'}]\n${m.describe()}`);
+          }
+        }
+      }
+    });
+    ctx.setQueryResult({ ok: true, descriptions });
+  });
+
+  // --- Asset Optimization Commands ---
+  map.set('asset_analyze', (cmd: any) => {
+    const rb = cmd.entityId !== undefined ? ctx.sceneManager.getComponent<any>(cmd.entityId, 'rigidBody') : undefined;
+    const obj = rb?.mesh;
+    const report = AssetAnalyzer.analyzeAsset({
+      assetId: cmd.assetId ?? `entity_${cmd.entityId}`,
+      object: obj,
+    });
+    ctx.setQueryResult({ ok: true, report, description: TextRenderDescriber.describeAsset(report) });
+  });
+
+  map.set('asset_optimize_plan', (cmd: any) => {
+    const rb = cmd.entityId !== undefined ? ctx.sceneManager.getComponent<any>(cmd.entityId, 'rigidBody') : undefined;
+    const obj = rb?.mesh;
+    const meshMetrics = obj ? AssetAnalyzer.analyzeMesh(obj) : undefined;
+    const plan = OptimizationPlanner.planMeshOptimization({
+      assetId: cmd.assetId ?? `entity_${cmd.entityId}`,
+      category: cmd.category,
+      overrides: cmd.overrides,
+      targetProfile: cmd.targetProfile,
+      meshMetrics,
+    });
+    ctx.setQueryResult({ ok: true, plan, description: TextRenderDescriber.describeOptimizationPlan(plan) });
+  });
+
+  map.set('asset_variant_list', () => {
+    const cache = DerivedVariantCache.get();
+    ctx.setQueryResult({
+      ok: true,
+      variants: cache.listKeys(),
+      totalSizeBytes: cache.getTotalSizeBytes(),
+    });
   });
 }
 

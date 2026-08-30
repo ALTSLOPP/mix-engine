@@ -1447,4 +1447,305 @@ export const renderingCommandDefinitions: readonly CommandDefinition[] = [
           "additionalProperties": true
     },
   },
+  {
+    type: "render_style_list",
+    summary: "List all registered visual styles and presets.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: { "type": "object", "properties": {}, "additionalProperties": true },
+  },
+  {
+    type: "render_style_get",
+    summary: "Get a registered visual style by ID.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "styleId": { "type": "string", "description": "Visual style ID", "required": true }
+      },
+      "requiredProperties": ["styleId"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "render_style_apply",
+    summary: "Apply a coordinated visual style preset (e.g. mix_anime_neutral, mix_anime_shonen, realistic).",
+    category: "rendering",
+    sideEffect: "runtime",
+    atomicSupport: "none",
+    atomicBoundary: "Irreversible external or runtime side effect",
+    capability: "runtime.mutate",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "styleId": { "type": "string", "description": "Visual style ID (e.g. mix_anime_neutral, mix_anime_shonen, mix_anime_warm, realistic)", "required": true }
+      },
+      "requiredProperties": ["styleId"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "render_style_describe",
+    summary: "Get plain-text semantic description of a visual style.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "styleId": { "type": "string", "description": "Visual style ID", "required": true }
+      },
+      "requiredProperties": ["styleId"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "render_target_list",
+    summary: "List all registered performance targets (e.g. ps3_plus_500, balanced, high_end, unbounded).",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: { "type": "object", "properties": {}, "additionalProperties": true },
+  },
+  {
+    type: "render_target_get",
+    summary: "Get a registered performance target by ID.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "targetId": { "type": "string", "description": "Performance target ID", "required": true }
+      },
+      "requiredProperties": ["targetId"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "render_target_apply",
+    summary: "Apply a hardware performance target profile.",
+    category: "rendering",
+    sideEffect: "runtime",
+    atomicSupport: "none",
+    atomicBoundary: "Irreversible external or runtime side effect",
+    capability: "runtime.mutate",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "targetId": { "type": "string", "description": "Target ID (ps3_plus_500, balanced, high_end, unbounded)", "required": true }
+      },
+      "requiredProperties": ["targetId"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "render_target_describe",
+    summary: "Get plain-text semantic description of a performance target.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "targetId": { "type": "string", "description": "Target profile ID", "required": true }
+      },
+      "requiredProperties": ["targetId"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "render_resolution_status",
+    summary: "Query current internal rendering resolution, output presentation resolution, and FSR upscaling status.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: { "type": "object", "properties": {}, "additionalProperties": true },
+  },
+  {
+    type: "render_capabilities",
+    summary: "Query GPU capabilities, compressed texture support, and asset cooking features.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: { "type": "object", "properties": {}, "additionalProperties": true },
+  },
+  {
+    type: "render_budget_report",
+    summary: "Generate deterministic scene cost budget report with draw calls, triangles, and bottleneck breakdown.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "targetFps": { "type": "number", "description": "Target framerate (default 60)", "required": false }
+      },
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "render_explain",
+    summary: "Provide deterministic answers and actionable advice for 'Why is my game slow?'.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "targetFps": { "type": "number", "description": "Target framerate (default 60)", "required": false }
+      },
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "anime_material_apply",
+    summary: "Apply anime material family across an entity or character hierarchy.",
+    category: "rendering",
+    sideEffect: "scene",
+    atomicSupport: "partial",
+    atomicBoundary: "Rollback supported within subsystem transaction boundary",
+    capability: "scene.write",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "entityId": { "type": ["number", "string"], "description": "Target entity ID", "required": true },
+        "skinColor": { "type": "string", "description": "Skin tint (#hex)", "required": false },
+        "hairColor": { "type": "string", "description": "Hair tint (#hex)", "required": false },
+        "eyeColor": { "type": "string", "description": "Eye tint (#hex)", "required": false },
+        "clothColor": { "type": "string", "description": "Cloth tint (#hex)", "required": false },
+        "hairHighlightStrength": { "type": "number", "description": "Graphic hair highlight intensity (0..1)", "required": false },
+        "rimIntensity": { "type": "number", "description": "Rim light intensity (0..2)", "required": false },
+        "shadowTint": { "type": "string", "description": "Character shadow tint (#hex)", "required": false }
+      },
+      "requiredProperties": ["entityId"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "anime_material_configure",
+    summary: "Configure fine-grained anime toon shading parameters on entity materials.",
+    category: "rendering",
+    sideEffect: "scene",
+    atomicSupport: "partial",
+    atomicBoundary: "Rollback supported within subsystem transaction boundary",
+    capability: "scene.write",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "entityId": { "type": ["number", "string"], "description": "Target entity ID", "required": true },
+        "surface": { "type": "string", "description": "Surface mode (standard, skin, face, hair, eye, cloth, stylized_metal)", "required": false },
+        "shadowThreshold": { "type": "number", "description": "Shadow boundary position (0..1)", "required": false },
+        "shadowSoftness": { "type": "number", "description": "Shadow transition softness (0..0.5)", "required": false },
+        "shadowColor": { "type": "string", "description": "Shadow tint (#hex)", "required": false },
+        "rimIntensity": { "type": "number", "description": "Rim light intensity (0..2)", "required": false },
+        "hairHighlightStrength": { "type": "number", "description": "Hair highlight intensity (0..1)", "required": false }
+      },
+      "requiredProperties": ["entityId"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "anime_material_describe",
+    summary: "Get plain-text semantic description of all anime materials on an entity.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "entityId": { "type": ["number", "string"], "description": "Target entity ID", "required": true }
+      },
+      "requiredProperties": ["entityId"],
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "asset_analyze",
+    summary: "Extract machine-readable metrics (triangles, materials, memory, bone count, animation tracks) for an asset or entity.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "assetId": { "type": "string", "description": "Asset ID", "required": false },
+        "entityId": { "type": ["number", "string"], "description": "Entity ID", "required": false }
+      },
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "asset_optimize_plan",
+    summary: "Generate a non-destructive dry-run optimization plan for an asset and target profile.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: {
+      "type": "object",
+      "properties": {
+        "assetId": { "type": "string", "description": "Asset ID", "required": false },
+        "entityId": { "type": ["number", "string"], "description": "Entity ID", "required": false },
+        "targetProfile": { "type": "string", "description": "Target performance profile (e.g. ps3_plus_500, balanced)", "required": false }
+      },
+      "additionalProperties": true
+    },
+  },
+  {
+    type: "asset_variant_list",
+    summary: "List all cached derived runtime asset variants.",
+    category: "rendering",
+    sideEffect: "read",
+    atomicSupport: "full",
+    atomicBoundary: "Read-only inspection",
+    capability: "scene.read",
+    versionIntroduced: '1.1.0',
+    parameters: { "type": "object", "properties": {}, "additionalProperties": true },
+  },
 ];

@@ -5,6 +5,9 @@ import { SkyEnvironment } from './SkyEnvironment';
 import { RenderPipeline } from './RenderPipeline';
 import { CascadedShadowMap } from './CascadedShadowMap';
 import { LOW_SPEC_RESOLUTION, resolveRenderResolution, sanitizeResolution, type RenderResolutionSettings } from './RenderResolution';
+import { AnimeLightingContext } from './anime/AnimeLightingContext';
+import { VisualStyleRegistry } from './profiles/VisualStyleRegistry';
+import { PerformanceTargetRegistry } from './profiles/PerformanceTargetRegistry';
 
 /** Options for swapping in an image-based-lighting (HDRI) environment. */
 export interface EnvironmentHDRIOptions {
@@ -109,6 +112,7 @@ export class Viewport {
   shadow: ShadowProvider;
   readonly skyEnv: SkyEnvironment;
   readonly pipeline: RenderPipeline;
+  readonly animeLighting = new AnimeLightingContext();
 
   private readonly container: HTMLElement;
   private readonly resizeObserver: ResizeObserver;
@@ -144,6 +148,7 @@ export class Viewport {
     const h = Math.max(1, container.clientHeight);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    AnimeLightingContext.bindRenderer(this.renderer, this.animeLighting);
     const resolution = resolveRenderResolution(w, h, window.devicePixelRatio, this.resolutionSettings, this.renderer.capabilities.maxTextureSize);
     this.renderer.setPixelRatio(1);
     this.renderer.setSize(resolution.outputWidth, resolution.outputHeight, false);
@@ -225,6 +230,31 @@ export class Viewport {
 
   getResolutionSettings(): Readonly<RenderResolutionSettings> { return { ...this.resolutionSettings }; }
 
+  applyVisualStyle(styleId: string): void {
+    const style = VisualStyleRegistry.get(styleId);
+    this.animeLighting.applyStyle(style);
+    this.pipeline.applyVisualStyle(style);
+  }
+
+  applyPerformanceTarget(targetId: string): void {
+    const target = PerformanceTargetRegistry.get(targetId);
+    this.setResolutionSettings({
+      fsrEnabled: target.fsrEnabled,
+      fsrSharpness: target.fsrSharpness,
+      internalHeight: target.internalHeight,
+      outputHeight: target.outputHeight,
+      renderScale: target.renderScale,
+    });
+    this.renderer.shadowMap.enabled = target.shadowsEnabled;
+    this.renderer.shadowMap.needsUpdate = true;
+    if (this.pipeline.bloomPass) this.pipeline.bloomPass.enabled = target.bloomEnabled;
+    this.pipeline.setAmbientOcclusion(target.aoEnabled);
+    if (this.pipeline.ssrPass) this.pipeline.ssrPass.enabled = target.ssrEnabled;
+    if (this.pipeline.dofPass) this.pipeline.dofPass.enabled = target.dofEnabled;
+    if (this.pipeline.volumetricFogPass) this.pipeline.volumetricFogPass.enabled = target.volumetricFogEnabled;
+    if (this.pipeline.contactShadowsPass) this.pipeline.contactShadowsPass.enabled = target.contactShadowsEnabled;
+  }
+
   getRenderResolution() {
     const target = this.pipeline.composer.renderTarget1;
     return {
@@ -251,9 +281,6 @@ export class Viewport {
       this.applyResolution();
     }
 
-    // Temporarily bind local context background/environment and disable other viewports' sun lights.
-    // Skipped when an HDRI environment is active — then scene.background/environment already hold
-    // the HDRI and must persist (the sky cube would otherwise clobber it every frame).
     const useSky = this.useSkyEnvironment;
     const prevBackground = this.scene.background;
     const prevEnvironment = this.scene.environment;
@@ -267,9 +294,6 @@ export class Viewport {
       }
     }
 
-    // The CSM uses multiple DirectionalLights; hide every OTHER scene directional light
-    // (e.g. user-added lights) so they don't double-light the scene. The CSM's cascade
-    // lights are all flagged userData.csmCascade so we can identify them.
     const toggledLights: THREE.DirectionalLight[] = [];
     const ourSun = (this.shadow as any).sun;
     const isCSM = (this.shadow as any).cascades !== undefined;
@@ -288,10 +312,13 @@ export class Viewport {
 
       this.shadow.update(this.camera);
       this.updateSunScreenPosition();
-      // Feed live camera matrices (SSR / volumetric fog / motion blur) + sun state (fog
-      // in-scatter colour) before drawing. The sun light carries the warm directional tint.
       this.pipeline.setCameraState(this.camera);
       this.pipeline.setSunState(this.skyEnv.sunDirection, (this.shadow as any).sun?.color ?? new THREE.Color(0xfff1d6));
+      this.animeLighting.setSun(
+        this.skyEnv.sunDirection,
+        (this.shadow as any).sun?.color ?? new THREE.Color(0xfff1d6),
+        (this.shadow as any).sun?.intensity ?? 1.8
+      );
       this.pipeline.render();
     } finally {
       if (useSky) {

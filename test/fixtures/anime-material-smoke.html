@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Anime material WebGL regression checks</title>
+<body>
+<h1>Anime material WebGL regression checks</h1>
+<pre id="results">Running...</pre>
+<script type="module">
+import * as THREE from 'three';
+import { CelToonMaterial } from '/src/materials/CelToonMaterial.ts';
+import { AnimeMaterialFamily } from '/src/materials/AnimeMaterialFamily.ts';
+import { AnimeLightingContext } from '/src/rendering/anime/AnimeLightingContext.ts';
+import { VisualStyleRegistry } from '/src/rendering/profiles/VisualStyleRegistry.ts';
+
+const lines = [];
+const owned = [];
+let renderer;
+function check(condition, message) {
+  if (!condition) throw new Error(message);
+  lines.push('PASS: ' + message);
+}
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer.setSize(64, 64);
+  renderer.debug.onShaderError = (gl, program, vertex, fragment) => {
+    throw new Error(gl.getProgramInfoLog(program) + gl.getShaderInfoLog(vertex) + gl.getShaderInfoLog(fragment));
+  };
+  document.body.append(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+  camera.position.z = 2;
+  const target = new THREE.WebGLRenderTarget(64, 64);
+  const map = new THREE.DataTexture(new Uint8Array([
+    255, 255, 255, 0, 255, 255, 255, 255,
+    255, 255, 255, 0, 255, 255, 255, 255,
+  ]), 2, 2);
+  map.needsUpdate = true;
+  const source = new THREE.MeshStandardMaterial({ map, alphaTest: 0.5, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), source);
+  const { materials: [mat] } = AnimeMaterialFamily.applyToCharacter(mesh);
+  owned.push(target, map, source, mesh.geometry, mat);
+  scene.add(mesh);
+  const pixels = new Uint8Array(64 * 64 * 4);
+  const at = (x, y) => Array.from(pixels.slice((y * 64 + x) * 4, (y * 64 + x) * 4 + 4));
+  function render() {
+    renderer.setRenderTarget(target);
+    renderer.setClearColor(0x000000, 0);
+    renderer.render(scene, camera);
+    renderer.readRenderTargetPixels(target, 0, 0, 64, 64, pixels);
+    check(renderer.getContext().getError() === 0, 'no WebGL errors');
+  }
+  render();
+  check(at(16, 32)[3] === 0 && at(48, 32)[3] === 255, 'texture alpha cuts out only the transparent half');
+  mesh.rotation.y = Math.PI;
+  render();
+  check(at(16, 32)[3] === 255 && at(48, 32)[3] === 0, 'double-sided back face remains visible with cutouts');
+  mesh.rotation.y = 0;
+  mat.transparent = true;
+  mat.alphaTest = 0;
+  mat.opacity = 0.4;
+  mat.needsUpdate = true;
+  render();
+  check(Math.abs(at(48, 32)[3] - 102) <= 1, 'opacity is used by the fragment shader and blending');
+  const alphaMap = new THREE.DataTexture(new Uint8Array([255, 0, 255, 255]), 1, 1);
+  alphaMap.needsUpdate = true;
+  owned.push(alphaMap);
+  mat.uniforms.uAlphaMap.value = alphaMap;
+  mat.uniforms.uHasAlphaMap.value = 1;
+  mat.alphaTest = 0.1;
+  render();
+  check(at(48, 32)[3] === 0, 'separate alpha map uses its green channel');
+  mat.uniforms.uHasAlphaMap.value = 0;
+  mat.opacity = 1;
+  const context = new AnimeLightingContext();
+  AnimeLightingContext.bindRenderer(renderer, context);
+  context.applyStyle(VisualStyleRegistry.get('mix_anime_warm'));
+  render();
+  check(mat.uniforms.uShadowColor.value.equals(context.shadowTint), 'style reaches existing material during real render');
+  context.applyStyle(VisualStyleRegistry.get('mix_anime_cool'));
+  render();
+  check(mat.uniforms.uShadowColor.value.equals(context.shadowTint), 'second style change needs no manual material traversal');
+  // Symmetric face-SDF convention: red-channel half-face gradients, mirrored by light side.
+  const sdf = new THREE.DataTexture(new Uint8Array([51, 0, 0, 255, 204, 0, 0, 255]), 2, 1);
+  sdf.needsUpdate = true;
+  owned.push(sdf);
+  mat.useSharedLighting = false;
+  mat.setSurface('face');
+  mat.setFaceSdf(sdf);
+  mat.uniforms.uHasMap.value = 0;
+  mat.uniforms.uColor.value.setRGB(1, 1, 1);
+  mat.uniforms.uShadowColor.value.setRGB(0, 0, 0);
+  mat.uniforms.uLightColor.value.setRGB(1, 1, 1);
+  mat.uniforms.uLightIntensity.value = 1;
+  mat.uniforms.uFillStrength.value = 0;
+  mat.uniforms.uRimIntensity.value = 0;
+  mat.uniforms.uHighlightIntensity.value = 0;
+  mat.uniforms.uLightDir.value.set(1, 0, 0);
+  render();
+  check(at(16, 32)[0] < 10 && at(48, 32)[0] > 240, 'positive side light samples the unmirrored half-face SDF');
+  mat.uniforms.uLightDir.value.set(-1, 0, 0);
+  render();
+  check(at(16, 32)[0] > 240 && at(48, 32)[0] < 10, 'negative side light mirrors the SDF contour');
+  mat.uniforms.uLightDir.value.set(0, 0, 1);
+  render();
+  check(at(16, 32)[0] > 240, 'front light illuminates the face');
+  mesh.rotation.y = Math.PI;
+  render();
+  check(at(16, 32)[0] < 10, 'object rotation also rotates the face basis');
+  scene.remove(mesh);
+  const faceGeometry = new THREE.PlaneGeometry(2, 2);
+  const vertexCount = faceGeometry.getAttribute('position').count;
+  faceGeometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(new Uint16Array(vertexCount * 4), 4));
+  faceGeometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(Array.from({ length: vertexCount * 4 }, (_, i) => i % 4 === 0 ? 1 : 0), 4));
+  const face = new THREE.SkinnedMesh(faceGeometry, mat);
+  const head = new THREE.Bone();
+  face.add(head);
+  scene.add(face);
+  scene.updateMatrixWorld(true);
+  const skeleton = new THREE.Skeleton([head]);
+  face.bind(skeleton);
+  owned.push(faceGeometry, skeleton);
+  render();
+  check(at(16, 32)[0] > 240, 'bind-pose face is illuminated');
+  head.rotation.y = Math.PI;
+  render();
+  check(at(16, 32)[0] < 10, 'animated head bone rotates the face basis with the skin');
+  document.querySelector('#results').textContent = lines.join('\n') + '\nALL PASSED';
+} catch (error) {
+  document.querySelector('#results').textContent = lines.join('\n') + '\nFAIL: ' + error.stack;
+} finally {
+  for (const resource of owned) resource.dispose();
+  renderer?.dispose();
+}
+</script>
+</body>
+</html>

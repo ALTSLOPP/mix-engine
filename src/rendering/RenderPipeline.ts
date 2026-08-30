@@ -8,6 +8,8 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import type { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
 import { SpeedLinesPass, ImpactFramePass } from './SpeedLinesPass';
 import { FsrUpscaler } from './FsrUpscaler';
+import { AtmosphericDepthPass } from './anime/AtmosphericDepthPass';
+import type { VisualStyleDescriptor } from './profiles/VisualStyleRegistry';
 import {
   OutlinePass,
   VignettePass,
@@ -60,6 +62,8 @@ export interface RenderPipelineOptions {
   /** Raymarched volumetric atmospheric fog with sun in-scatter. */
   volumetricFog?: boolean;
   fogDensity?: number;
+  /** Lightweight anime aerial atmosphere pass. */
+  atmosphericDepth?: boolean;
   /** Camera motion blur (velocity from depth reprojection). */
   motionBlur?: boolean;
   motionBlurIntensity?: number;
@@ -73,11 +77,19 @@ export interface RenderPipelineOptions {
   taa?: boolean;
 }
 
+/** GPU submissions across the prepass, scene, shadows, post effects and upscaler. */
+export interface RenderFrameMetrics {
+  drawCalls: number;
+  triangles: number;
+  geometries: number;
+  textures: number;
+}
+
 /**
  * RenderPipeline.ts — a deferred-style post-processing chain, the kind every modern engine
  * runs by default:
  *
- *   RenderPass (HDR, linear) → GTAO → ContactShadows → SSR → VolumetricFog → TAA →
+ *   RenderPass (HDR, linear) → GTAO → ContactShadows → SSR → VolumetricFog → AtmosphericDepth → TAA →
  *   UnrealBloom → GodRays → DoF → MotionBlur → Outline → Vignette → ColorGrade →
  *   ChromaticAberration → FilmGrain → AutoExposure → OutputPass (ACES + sRGB) → SMAA
  *
@@ -87,9 +99,6 @@ export interface RenderPipelineOptions {
  * The composer uses a half-float HDR target so bright highlights survive into bloom. Tone
  * mapping happens ONCE, in OutputPass (it reads renderer.toneMapping), so intermediate
  * passes operate in scene-referred linear light — exactly the Unreal/Unity ordering.
- *
- * Custom passes (Outline, Vignette, ColorGrade, ChromaticAberration, FilmGrain) are exposed
- * for the engine API / AI bridge so an IDE can dial in a cinematic look at runtime.
  */
 export class RenderPipeline {
   readonly composer: EffectComposer;
@@ -97,6 +106,7 @@ export class RenderPipeline {
   private aoPass?: GTAOPass;
   readonly ssrPass?: SSRPass;
   readonly volumetricFogPass?: VolumetricFogPass;
+  readonly atmosphericDepthPass?: AtmosphericDepthPass;
   readonly motionBlurPass?: MotionBlurPass;
   readonly contactShadowsPass?: ContactShadowsPass;
   readonly autoExposurePass?: AutoExposurePass;
@@ -116,18 +126,9 @@ export class RenderPipeline {
   private readonly scene: THREE.Scene;
   private readonly camera: THREE.Camera;
 
-  // G-buffer pre-pass: the deferred-style passes (outline, DoF, SSR, fog, motion blur)
-  // need to SAMPLE scene depth — and SSR additionally needs view-space normals. Sampling
-  // the composer's own depth attachment while rendering into a ping-pong target it's bound
-  // to forms a GL feedback loop (INVALID_OPERATION). Instead we render a single cheap pass
-  // into this dedicated target (colour = view normals, plus a real depth texture) and
-  // sample THAT. The override material is the normal material when SSR is on (so the colour
-  // attachment carries normals) and the cheaper depth material otherwise; either way the
-  // depth texture is valid. Gated to run only when some consumer is enabled.
   private gBufferRT?: THREE.WebGLRenderTarget;
   private readonly depthMaterial = new THREE.MeshDepthMaterial();
   private readonly normalMaterial = new THREE.MeshNormalMaterial();
-  // Scratch matrices reused each frame for the camera-state feeds (no per-frame allocation).
   private readonly _invProj = new THREE.Matrix4();
   private readonly _viewProj = new THREE.Matrix4();
   private readonly _matWorldInv = new THREE.Matrix4();
@@ -136,9 +137,9 @@ export class RenderPipeline {
   private internalWidth = 1;
   private internalHeight = 1;
   private dynamicScale = 1;
-  // TAA sub-pixel jitter + auto-exposure timing state.
   private _jitterFrame = 0;
   private _prevElapsed = -1;
+  private lastFrameMetrics: RenderFrameMetrics | null = null;
 
   constructor(
     renderer: THREE.WebGLRenderer,
@@ -152,9 +153,6 @@ export class RenderPipeline {
     const size = renderer.getSize(new THREE.Vector2());
     const pr = renderer.getPixelRatio();
 
-    // HDR working target so highlights above 1.0 reach the bloom pass intact. A depth
-    // RENDERBUFFER (not a sampled texture) is enough for the RenderPass's own depth
-    // testing; depth that post passes SAMPLE comes from the standalone prepass target.
     const hdrTarget = new THREE.WebGLRenderTarget(size.x * pr, size.y * pr, {
       type: THREE.HalfFloatType,
       colorSpace: THREE.LinearSRGBColorSpace,
@@ -167,12 +165,11 @@ export class RenderPipeline {
 
     this.addPass(new RenderPass(scene, camera));
 
-    // Ambient occlusion — defensive, since GTAO is the most version-sensitive pass.
+    // Ambient occlusion
     if (opts.ao !== false) {
       try {
         const ao = new GTAOPass(scene, camera, size.x, size.y);
         ao.output = GTAOPass.OUTPUT.Default;
-        // Tune for a metre-scale scene: tight radius, gentle darkening.
         ao.updateGtaoMaterial({ radius: opts.aoRadius ?? 0.5, distanceExponent: 1, scale: 1 });
         this.aoPass = ao;
         this.addPass(ao);
@@ -181,8 +178,7 @@ export class RenderPipeline {
       }
     }
 
-    // Screen-space contact shadows — right after AO so the contact darkening lands on the
-    // base lit image (before reflections/fog/bloom). Reads the G-buffer depth + sun dir.
+    // Screen-space contact shadows
     {
       const p = new ContactShadowsPass();
       p.setSize(size.x, size.y);
@@ -192,8 +188,7 @@ export class RenderPipeline {
       this.addPass(p);
     }
 
-    // Screen-space reflections — sits before bloom so reflected highlights bloom too.
-    // Reads the lit HDR colour + the G-buffer depth/normals (fed each frame).
+    // Screen-space reflections
     {
       const p = new SSRPass();
       p.setSize(size.x, size.y);
@@ -203,7 +198,7 @@ export class RenderPipeline {
       this.addPass(p);
     }
 
-    // Volumetric atmospheric fog — before bloom so the sun in-scatter shafts bloom.
+    // Volumetric atmospheric fog
     {
       const p = new VolumetricFogPass();
       p.enabled = opts.volumetricFog ?? false;
@@ -212,8 +207,15 @@ export class RenderPipeline {
       this.addPass(p);
     }
 
-    // Temporal anti-aliasing — resolves the jittered scene (incl. noisy SSR/fog above it)
-    // BEFORE bloom, so bloom/DoF see a clean, temporally-stable image. Replaces SMAA.
+    // Lightweight stylized atmospheric depth pass
+    {
+      const p = new AtmosphericDepthPass();
+      p.enabled = opts.atmosphericDepth ?? false;
+      this.atmosphericDepthPass = p;
+      this.addPass(p);
+    }
+
+    // Temporal anti-aliasing
     {
       const p = new TAAPass();
       p.enabled = opts.taa ?? false;
@@ -231,8 +233,7 @@ export class RenderPipeline {
       this.addPass(this.bloomPass);
     }
 
-    // Volumetric light shafts (god rays). Reads the bloomed HDR buffer so the bright
-    // sun/sky scatters; the Viewport feeds the sun's screen position each frame.
+    // Volumetric light shafts (god rays)
     {
       const p = new GodRaysPass();
       p.enabled = opts.godRays ?? false;
@@ -241,8 +242,7 @@ export class RenderPipeline {
       this.addPass(p);
     }
 
-    // Cinematic depth-of-field. Reads the scene depth texture (same one the outline
-    // pass uses) and blurs by circle-of-confusion. In linear HDR → bright bokeh.
+    // Cinematic depth-of-field
     {
       const p = new DepthOfFieldPass();
       p.enabled = opts.dof ?? false;
@@ -252,8 +252,7 @@ export class RenderPipeline {
       this.addPass(p);
     }
 
-    // Camera motion blur — late in the HDR chain so it smears the fully-composed scene
-    // (bloom, god rays, DoF included), the way a real shutter integrates the frame.
+    // Camera motion blur
     {
       const p = new MotionBlurPass();
       p.enabled = opts.motionBlur ?? false;
@@ -262,9 +261,7 @@ export class RenderPipeline {
       this.addPass(p);
     }
 
-    // Optional custom passes — all default off so the chain stays cheap out of the box.
-    // We ALWAYS create them (just keep them disabled) so the FX toggle can flip them
-    // on at runtime without recreating the composer.
+    // Custom passes
     {
       const p = new OutlinePass();
       p.setSize(size.x, size.y);
@@ -299,8 +296,7 @@ export class RenderPipeline {
       this.addPass(p);
     }
 
-    // HDR auto-exposure / eye adaptation — the LAST thing before tone mapping, so it scales
-    // the fully-composed scene-referred HDR toward a key value (then OutputPass tonemaps).
+    // Auto exposure
     {
       const p = new AutoExposurePass();
       p.enabled = opts.autoExposure ?? false;
@@ -309,20 +305,17 @@ export class RenderPipeline {
       this.addPass(p);
     }
 
-    // Stylized action passes stay in the chain at negligible cost while inactive;
-    // gameplay can drive their public uniforms without rebuilding the composer.
     this.speedLinesPass = new SpeedLinesPass();
     this.impactFramePass = new ImpactFramePass();
     this.addPass(this.speedLinesPass);
     this.addPass(this.impactFramePass);
 
-    // ACES tone map + sRGB conversion (reads renderer.toneMapping / exposure).
+    // ACES tone map + sRGB conversion
     this.addPass(new OutputPass());
 
-    // Antialias the final image (cheap, temporally stable, no ghosting).
+    // SMAA
     this.smaaPass = new SMAAPass(size.x * pr, size.y * pr);
     this.addPass(this.smaaPass);
-    // TAA and SMAA both anti-alias — if TAA starts on, SMAA stays off.
     if (this.taaPass?.enabled) this.smaaPass.enabled = false;
     this.setSize(size.x, size.y);
     this.upscaler.setSize(Math.round(size.x * pr), Math.round(size.y * pr));
@@ -335,8 +328,6 @@ export class RenderPipeline {
       const dt = new THREE.DepthTexture(w, h);
       dt.format = THREE.DepthFormat;
       dt.type = THREE.UnsignedIntType;
-      // Colour attachment carries view-space normals (when the normal material runs).
-      // NoColorSpace so the renderer doesn't sRGB-encode the packed [0,1] normals.
       this.gBufferRT = new THREE.WebGLRenderTarget(w, h, { depthTexture: dt, depthBuffer: true });
       this.gBufferRT.texture.colorSpace = THREE.NoColorSpace;
     } else if (this.gBufferRT.width !== w || this.gBufferRT.height !== h) {
@@ -351,16 +342,13 @@ export class RenderPipeline {
       this.outlinePass?.enabled ||
       this.ssrPass?.enabled ||
       this.volumetricFogPass?.enabled ||
+      this.atmosphericDepthPass?.enabled ||
       this.motionBlurPass?.enabled ||
       this.contactShadowsPass?.enabled ||
       this.taaPass?.enabled
     );
   }
 
-  /** Cheap G-buffer render into a standalone target, sampled by the deferred passes.
-   *  Avoids the composer-depth feedback loop. No-op unless a consumer is enabled.
-   *  Renders the normal material when SSR is on (colour = view normals), else the
-   *  cheaper depth material; either way the depth texture is valid for everyone. */
   private renderGBufferPrepass(): void {
     if (!this.depthConsumersActive()) return;
     const rt = this.ensureGBufferRT();
@@ -369,7 +357,7 @@ export class RenderPipeline {
     const prevTarget = r.getRenderTarget();
     const prevShadowAuto = r.shadowMap.autoUpdate;
     const prevOverride = this.scene.overrideMaterial;
-    r.shadowMap.autoUpdate = false;            // prepass needs no shadows
+    r.shadowMap.autoUpdate = false;
     this.scene.overrideMaterial = wantNormals ? this.normalMaterial : this.depthMaterial;
     r.setRenderTarget(rt);
     r.clear();
@@ -382,6 +370,7 @@ export class RenderPipeline {
     if (this.dofPass) { this.dofPass.setDepthTexture(depth); this.dofPass.setSize(w, h); }
     if (this.outlinePass) { this.outlinePass.setDepthTexture(depth); this.outlinePass.setSize(w, h); }
     if (this.volumetricFogPass) this.volumetricFogPass.setDepthTexture(depth);
+    if (this.atmosphericDepthPass) this.atmosphericDepthPass.setDepthTexture(depth);
     if (this.motionBlurPass) this.motionBlurPass.setDepthTexture(depth);
     if (this.taaPass) this.taaPass.setDepthTexture(depth);
     if (this.contactShadowsPass) { this.contactShadowsPass.setDepthTexture(depth); this.contactShadowsPass.setSize(w, h); }
@@ -392,15 +381,35 @@ export class RenderPipeline {
     }
   }
 
-  /** Push per-frame data into the time/camera-dependent passes (call each frame). */
+  applyVisualStyle(style: VisualStyleDescriptor): void {
+    if (this.colorGradePass) {
+      this.colorGradePass.enabled = style.saturation !== 1.0 || style.contrast !== 1.0 || style.brightness !== 1.0;
+      this.colorGradePass.uniforms.saturation.value = style.saturation;
+      this.colorGradePass.uniforms.contrast.value = style.contrast;
+      this.colorGradePass.uniforms.brightness.value = style.brightness - 1.0;
+    }
+    if (this.outlinePass) {
+      this.outlinePass.enabled = style.outlineThickness > 0;
+      this.outlinePass.uniforms.thickness.value = style.outlineThickness;
+      this.outlinePass.uniforms.color.value.set(style.outlineColor);
+    }
+    if (this.bloomPass) {
+      this.bloomPass.threshold = style.bloomThreshold;
+      this.bloomPass.strength = style.bloomStrength;
+      this.bloomPass.radius = style.bloomRadius;
+    }
+  }
+
   tick(timeSeconds: number): void {
     if (this.filmGrainPass) this.filmGrainPass.setTime(timeSeconds);
-    // DoF linearises perspective depth, which depends on the live clip planes.
     if (this.dofPass) {
       const cam = this.camera as THREE.PerspectiveCamera;
       if (cam.isPerspectiveCamera) this.dofPass.setCameraClip(cam.near, cam.far);
     }
-    // Frame delta drives framerate-independent eye adaptation.
+    if (this.atmosphericDepthPass) {
+      const cam = this.camera as THREE.PerspectiveCamera;
+      if (cam.isPerspectiveCamera) this.atmosphericDepthPass.setCameraClip(cam.near, cam.far);
+    }
     if (this.autoExposurePass) {
       const dt = this._prevElapsed < 0 ? 0.016 : Math.max(0, Math.min(0.1, timeSeconds - this._prevElapsed));
       this.autoExposurePass.setDeltaTime(dt);
@@ -408,25 +417,17 @@ export class RenderPipeline {
     this._prevElapsed = timeSeconds;
   }
 
-  /** Feed the sun's projected screen position (UV 0..1) + on-screen visibility (0..1)
-   *  into the god-rays pass. The Viewport computes this from the sky's sun direction. */
   setSunScreenPosition(uvX: number, uvY: number, visible: number): void {
     this.godRaysPass?.setLight(uvX, uvY, visible);
   }
 
-  /** Push the live camera matrices into the deferred passes (SSR view-space march,
-   *  fog world-ray reconstruction, motion-blur reprojection). Call each frame, after
-   *  the camera's world matrix is up to date. Cheap; reuses scratch matrices. */
   setCameraState(camera: THREE.Camera): void {
     const persp = camera as THREE.PerspectiveCamera;
-    // matrixWorldInverse is only refreshed by the renderer at draw time, but we run
-    // before composer.render() — so derive everything from the (current) world matrix.
     camera.updateMatrixWorld();
     this._invProj.copy(camera.projectionMatrix).invert();
     this._matWorldInv.copy(camera.matrixWorld).invert();
     this._camPos.setFromMatrixPosition(camera.matrixWorld);
     const near = persp.isPerspectiveCamera ? persp.near : 0.1;
-    // viewProjection = projection * viewMatrix (world → clip), for reprojection.
     this._viewProj.multiplyMatrices(camera.projectionMatrix, this._matWorldInv);
     if (this.ssrPass) this.ssrPass.setCameraMatrices(camera.projectionMatrix, this._invProj, near);
     if (this.volumetricFogPass) this.volumetricFogPass.setCameraState(this._invProj, camera.matrixWorld, this._camPos);
@@ -435,8 +436,6 @@ export class RenderPipeline {
     if (this.taaPass) this.taaPass.setCameraState(this._invProj, camera.matrixWorld, this._viewProj);
   }
 
-  /** Feed the sun direction + colour into the passes that scatter/trace sunlight
-   *  (volumetric fog in-scatter, contact-shadow trace direction). */
   setSunState(direction: THREE.Vector3, color: THREE.Color): void {
     this.volumetricFogPass?.setSun(direction, color);
     this.contactShadowsPass?.setSun(direction);
@@ -448,11 +447,29 @@ export class RenderPipeline {
   }
 
   render(): void {
+    const info = this.renderer.info;
+    const autoReset = info.autoReset;
+    info.autoReset = false;
+    info.reset();
+    try {
+      this.renderFrame();
+      this.lastFrameMetrics = {
+        drawCalls: info.render.calls,
+        triangles: info.render.triangles,
+        geometries: info.memory.geometries,
+        textures: info.memory.textures,
+      };
+    } finally {
+      info.autoReset = autoReset;
+    }
+  }
+
+  getLastFrameMetrics(): RenderFrameMetrics | null {
+    return this.lastFrameMetrics ? { ...this.lastFrameMetrics } : null;
+  }
+
+  private renderFrame(): void {
     this.renderGBufferPrepass();
-    // TAA: nudge the camera a sub-pixel amount (Halton) for THIS scene render only, so
-    // successive frames sample different sub-pixel positions and the resolve integrates
-    // them into a supersampled image. Applied directly to projectionMatrix.m02/m12 (a
-    // constant screen-space shift) and restored immediately after, so nothing else sees it.
     const cam = this.camera as THREE.PerspectiveCamera;
     const taaOn = !!this.taaPass?.enabled && cam.isPerspectiveCamera;
     let e8 = 0, e9 = 0;
@@ -478,8 +495,6 @@ export class RenderPipeline {
     }
   }
 
-  /** TAA and SMAA are mutually exclusive (both anti-alias). Turning one on disables the
-   *  other; the AIBridge calls this so a single command flips the whole AA strategy. */
   setTemporalAA(on: boolean): void {
     if (this.taaPass) this.taaPass.enabled = on;
     this.smaaPass.enabled = !on;
@@ -487,12 +502,10 @@ export class RenderPipeline {
 
   setAmbientOcclusion(enabled: boolean): void { if (this.aoPass) this.aoPass.enabled = enabled; }
 
-  /** Legacy adapter: changes internal resolution only, never presentation size. */
   setPixelRatio(ratio: number): void { this.setDynamicResolutionScale(ratio); }
 
   setOutputSize(width: number, height: number): void { this.upscaler.setSize(width, height); }
 
-  /** Physical internal pixels. Output size and devicePixelRatio are independent. */
   setSize(width: number, height: number): void {
     this.internalWidth = Math.max(1, Math.round(width));
     this.internalHeight = Math.max(1, Math.round(height));
@@ -508,7 +521,6 @@ export class RenderPipeline {
   private resizeInternal(): void {
     const width = Math.max(1, Math.round(this.internalWidth * this.dynamicScale));
     const height = Math.max(1, Math.round(this.internalHeight * this.dynamicScale));
-    // EffectComposer propagates these exact dimensions to EVERY pass, including TAA.
     this.composer.setSize(width, height);
     this.gBufferRT?.setSize(width, height);
   }
