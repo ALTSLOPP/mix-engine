@@ -163,7 +163,8 @@ describe('general gameplay modules', () => {
     features.fromJSON(saved);
     expect(features.objectives.items[0]).toMatchObject({ title: 'Restored', progress: 0 });
     expect(features.pause.getConfig().title).toBe('Prototype');
-    expect((features.toJSON().activeFeatures as string[])).toHaveLength(64);
+    expect(features.toJSON().activeFeatures).toEqual(saved.activeFeatures);
+    expect(features.isFeatureEnabled('zombie_horde_ai')).toBe(false);
   });
 });
 

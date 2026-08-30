@@ -1,3 +1,6 @@
+import { validateFeatureRuntime } from './RuntimeSnapshot';
+import { disposeOwnedObject } from './DisposeOwnedObject';
+import { gameplayWallet } from './GameplayWallet';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { EntityId } from '../../ecs/SceneManager';
@@ -31,6 +34,7 @@ export class PackAPunchSystem {
 
   constructor(private readonly engine: Engine, initialConfig: PackAPunchConfig = DEFAULT_PACK_A_PUNCH_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'PackAPunchRoot';
     this.setupVisuals();
   }
@@ -65,6 +69,7 @@ export class PackAPunchSystem {
 
   setConfig(config: Partial<PackAPunchConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
     if (!this.config.enabled) {
       this.rootGroup.visible = false;
     } else {
@@ -102,13 +107,13 @@ export class PackAPunchSystem {
     if (currentTier >= 3) return false;
 
     const cost = this.getCostForNextTier(weaponId);
-    const currentScore = (this.engine.sceneManager?.gameState as any)?.score ?? 999999;
+    const currentScore = gameplayWallet(this.engine).getBalance();
     if (currentScore < cost) {
       this.engine.sceneManager?.events?.emit('pap_insufficient_points', { cost, currentScore });
       return false;
     }
 
-    (this.engine.sceneManager?.gameState as any)?.addScore?.(-cost);
+    if (!gameplayWallet(this.engine).trySpend(cost)) return false;
 
     this.isUpgrading = true;
     this.upgradeTimer = this.config.upgradeTimeSec;
@@ -139,10 +144,10 @@ export class PackAPunchSystem {
     if (!this.config.enabled) return false;
 
     const cost = this.config.aatCost;
-    const currentScore = (this.engine.sceneManager?.gameState as any)?.score ?? 999999;
+    const currentScore = gameplayWallet(this.engine).getBalance();
     if (currentScore < cost) return false;
 
-    (this.engine.sceneManager?.gameState as any)?.addScore?.(-cost);
+    if (!gameplayWallet(this.engine).trySpend(cost)) return false;
 
     let state = this.upgradedWeapons.get(weaponId);
     if (!state) {
@@ -164,7 +169,7 @@ export class PackAPunchSystem {
   }
 
   triggerAATEffect(aat: AATType, targetEntityId: EntityId, hitPosition: THREE.Vector3): void {
-    if (aat === 'none') return;
+    if (!this.config.enabled || aat === 'none') return;
 
     if (aat === 'blast_furnace') {
       this.engine.burstVfx?.('fire', hitPosition.clone(), 15);
@@ -213,6 +218,7 @@ export class PackAPunchSystem {
       this.state.timeRemaining = Math.max(0, this.upgradeTimer);
 
       if (this.upgradeTimer <= 0) {
+        this.upgradeTimer = 0;
         this.isUpgrading = false;
         this.state.isUpgrading = false;
         const weaponId = this.state.upgradingWeaponId!;
@@ -231,12 +237,14 @@ export class PackAPunchSystem {
     this.unsubs.forEach((u) => u());
     this.unsubs.length = 0;
     this.engine.viewport?.scene?.remove(this.rootGroup);
-    this.rootGroup.clear();
+    disposeOwnedObject(this.rootGroup);
   }
 
   toJSON(): Record<string, unknown> {
     return {
       enabled: this.config.enabled,
+      upgradingWeaponId: this.state.upgradingWeaponId,
+      timeRemaining: this.upgradeTimer,
       upgradedWeapons: Array.from(this.upgradedWeapons.entries()).map(([k, v]) => ({
         weaponId: k,
         tier: v.tier,
@@ -246,16 +254,29 @@ export class PackAPunchSystem {
   }
 
   fromJSON(data: Record<string, unknown>): void {
-    if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
+    validateFeatureRuntime('pack_a_punch_upgrade', data);
+    this.upgradedWeapons.clear();
+    this.isUpgrading = false;
+    this.upgradeTimer = 0;
+    this.state.isUpgrading = false;
+    this.state.upgradingWeaponId = null;
+    this.state.timeRemaining = 0;
+    if (typeof data.upgradingWeaponId === 'string' && typeof data.timeRemaining === 'number' && data.timeRemaining > 0) {
+      this.state.upgradingWeaponId = data.upgradingWeaponId;
+      this.state.timeRemaining = this.upgradeTimer = data.timeRemaining;
+      this.isUpgrading = this.state.isUpgrading = true;
+    }
+    if (typeof data.enabled === 'boolean') this.setConfig({ enabled: data.enabled });
     if (Array.isArray(data.upgradedWeapons)) {
       for (const item of data.upgradedWeapons) {
+        if (!item || typeof item.weaponId !== 'string' || ![1, 2, 3].includes(item.tier)) throw new Error('Invalid weapon upgrade snapshot');
         const damageMult = item.tier === 1 ? 2.0 : item.tier === 2 ? 3.5 : 5.0;
         this.upgradedWeapons.set(item.weaponId, {
           weaponId: item.weaponId,
           tier: item.tier,
           damageMultiplier: damageMult,
           aat: item.aat ?? 'none',
-          maxReserveMultiplier: item.tier === 1 ? 1.5 : 2.0,
+          maxReserveMultiplier: item.tier === 1 ? 1.5 : item.tier === 2 ? 2.0 : 2.5,
         });
       }
     }

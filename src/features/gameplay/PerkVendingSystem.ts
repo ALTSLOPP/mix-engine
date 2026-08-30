@@ -1,3 +1,6 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
+import { addOwnedModifier } from './OwnedModifiers';
+import { gameplayWallet } from './GameplayWallet';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { PerkMachineDef, PerkType, PerkVendingConfig, PerkVendingState } from './types';
@@ -74,6 +77,7 @@ export class PerkVendingSystem {
   private readonly machineMeshes = new Map<PerkType, THREE.Group>();
   private readonly unsubs: Array<() => void> = [];
 
+  private readonly removeModifiers: Array<() => void> = [];
   private isDrinking = false;
   private drinkTimer = 0;
 
@@ -84,6 +88,7 @@ export class PerkVendingSystem {
 
   constructor(private readonly engine: Engine, initialConfig: PerkVendingConfig = DEFAULT_PERK_VENDING_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'PerkVendingRoot';
     this.setupVisuals();
     this.bindEvents();
@@ -99,6 +104,9 @@ export class PerkVendingSystem {
     });
 
     if (u1) this.unsubs.push(u1);
+    this.unsubs.push(events.on('combat_death', (event: any) => {
+      if (event?.entityId === this.engine.player?.getPossessedId?.() || event?.targetId === this.engine.player?.getPossessedId?.()) this.loseAllPerks();
+    }));
   }
 
   private setupVisuals(): void {
@@ -144,7 +152,9 @@ export class PerkVendingSystem {
 
   setConfig(config: Partial<PerkVendingConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
     if (!this.config.enabled) {
+      this.loseAllPerks();
       this.rootGroup.visible = false;
     } else {
       this.rootGroup.visible = true;
@@ -164,7 +174,7 @@ export class PerkVendingSystem {
   }
 
   buyPerk(perkType: PerkType): boolean {
-    if (!this.config.enabled || this.isDrinking || this.hasPerk(perkType)) {
+    if (!this.config.enabled || (this.engine.player?.getPossessedId?.() ?? null) === null || this.isDrinking || this.hasPerk(perkType)) {
       return false;
     }
 
@@ -174,11 +184,12 @@ export class PerkVendingSystem {
     }
 
     const machine = this.config.machines.find((m) => m.perkType === perkType);
-    let cost = machine?.cost ?? 2000;
+    if (!machine) return false;
+    let cost = machine.cost;
     if ((this.engine.gameplayFeatures as any)?.gobbleGums?.isGumActive?.('shopping_free')) {
       cost = 0;
     }
-    const currentScore = (this.engine.sceneManager?.gameState as any)?.score ?? 999999;
+    const currentScore = gameplayWallet(this.engine).getBalance();
 
     if (currentScore < cost) {
       this.engine.sceneManager?.events?.emit('perk_insufficient_points', { cost, currentScore });
@@ -186,7 +197,7 @@ export class PerkVendingSystem {
     }
 
     if (cost > 0) {
-      (this.engine.sceneManager?.gameState as any)?.addScore?.(-cost);
+      if (!gameplayWallet(this.engine).trySpend(cost)) return false;
     }
 
     this.isDrinking = true;
@@ -209,31 +220,25 @@ export class PerkVendingSystem {
   }
 
   private applyPerkEffects(perkType: PerkType): void {
-    const playerEntityId = this.engine.player?.getPossessedId?.() ?? 1;
-    const playerHealth = this.engine.combat?.getHealth?.(playerEntityId);
-
-    if (perkType === 'juggernog' && playerHealth) {
-      playerHealth.maxHp = 250;
-      playerHealth.hp = 250;
+    const playerEntityId = this.engine.player?.getPossessedId?.() ?? null;
+    if (playerEntityId === null) return;
+    const health = this.engine.combat?.getHealth?.(playerEntityId);
+    if (perkType === 'juggernog' && health) {
+      const remove = addOwnedModifier(health, 'maxHp', 150);
+      health.hp = health.maxHp;
+      this.removeModifiers.push(() => { remove(); health.hp = Math.min(health.hp, health.maxHp); });
     }
-
     if (perkType === 'stamin_up') {
-      const locomotor = (this.engine.player as any)?.locomotor;
-      if (locomotor) {
-        locomotor.sprintMultiplier = 1.85;
-      }
+      const locomotor = this.engine.player?.getLocomotor?.() ?? (this.engine.player as any)?.locomotor;
+      if (locomotor?.params) this.removeModifiers.push(addOwnedModifier(locomotor.params, 'maxRunSpeed', locomotor.params.maxRunSpeed * 0.35));
     }
   }
 
   loseAllPerks(): void {
-    const playerEntityId = this.engine.player?.getPossessedId?.() ?? 1;
-    const playerHealth = this.engine.combat?.getHealth?.(playerEntityId);
-
-    if (this.hasPerk('juggernog') && playerHealth) {
-      playerHealth.maxHp = 100;
-      playerHealth.hp = Math.min(playerHealth.hp, 100);
-    }
-
+    for (const remove of this.removeModifiers.splice(0).reverse()) remove();
+    this.isDrinking = false;
+    this.drinkTimer = 0;
+    this.state.isDrinking = false;
     this.state.activePerks = [];
     this.engine.sceneManager?.events?.emit('perks_lost', {});
   }
@@ -252,23 +257,28 @@ export class PerkVendingSystem {
   }
 
   dispose(): void {
+    this.loseAllPerks();
     this.unsubs.forEach((u) => u());
     this.unsubs.length = 0;
     this.engine.viewport?.scene?.remove(this.rootGroup);
-    this.rootGroup.clear();
+    disposeOwnedObject(this.rootGroup);
   }
 
   toJSON(): Record<string, unknown> {
     return {
       enabled: this.config.enabled,
       activePerks: [...this.state.activePerks],
+      drinkTimer: this.drinkTimer, isDrinking: this.isDrinking,
     };
   }
 
   fromJSON(data: Record<string, unknown>): void {
-    if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
-    if (Array.isArray(data.activePerks)) {
-      this.state.activePerks = [...data.activePerks];
+    this.loseAllPerks();
+    if (typeof data.enabled === 'boolean') this.setConfig({ enabled: data.enabled });
+    if (this.config.enabled && Array.isArray(data.activePerks)) {
+      this.state.activePerks = [...new Set(data.activePerks.filter((p): p is PerkType => this.config.machines.some(m => m.perkType === p)))];
+      this.drinkTimer = Number(data.drinkTimer ?? 0);
+      this.isDrinking = this.state.isDrinking = data.isDrinking === true;
       for (const p of this.state.activePerks) {
         this.applyPerkEffects(p);
       }

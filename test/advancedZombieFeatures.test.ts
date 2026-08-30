@@ -1,3 +1,5 @@
+import { PersistentGameState } from '../src/ecs/PersistentGameState';
+import { gameplayWallet } from '../src/features/gameplay/GameplayWallet';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { GameplayFeatureRegistry } from '../src/features/gameplay/GameplayFeatureRegistry';
@@ -34,7 +36,9 @@ function createMockEngine(): any {
   const healthMap = new Map<number, { hp: number; maxHp: number; faction: string }>();
   healthMap.set(1, { hp: 100, maxHp: 100, faction: 'player' });
 
-  let currentScore = 10000;
+  const gameState = new PersistentGameState('zombie-test');
+  gameState.clear();
+  gameState.setItem('__gameplay_points__', 10000);
 
   const mockZombieHorde = {
     zombies: [
@@ -68,14 +72,7 @@ function createMockEngine(): any {
     },
     sceneManager: {
       events,
-      gameState: {
-        get score() {
-          return currentScore;
-        },
-        addScore: (pts: number) => {
-          currentScore += pts;
-        },
-      },
+      gameState,
       getRigidBody: (id: number) => {
         if (id === 1) {
           return { mesh: playerMesh, setNextKinematicTranslation: () => {} };
@@ -87,7 +84,7 @@ function createMockEngine(): any {
       getPossessedId: () => 1,
       enabled: true,
       setInputLocked: vi.fn(),
-      locomotor: { sprintMultiplier: 1.35 },
+      locomotor: { params: { maxRunSpeed: 8 } },
     },
     combat: {
       getHealth: (id: number) => healthMap.get(id) ?? null,
@@ -354,16 +351,16 @@ describe('Zombie Ultimate Experience — Manager & Preset', () => {
     manager.gobbleGums.chewGum('shopping_free');
     expect(manager.gobbleGums.isGumActive('shopping_free')).toBe(true);
 
-    const initialScore = engine.sceneManager.gameState.score;
+    const initialScore = gameplayWallet(engine).getBalance();
 
     // Mystery Box spin costs 0
     expect(manager.mysteryBox.getEffectiveCost()).toBe(0);
     manager.mysteryBox.spinBox();
-    expect(engine.sceneManager.gameState.score).toBe(initialScore);
+    expect(gameplayWallet(engine).getBalance()).toBe(initialScore);
 
     // Perk purchase costs 0
     manager.perkVending.buyPerk('juggernog');
-    expect(engine.sceneManager.gameState.score).toBe(initialScore);
+    expect(gameplayWallet(engine).getBalance()).toBe(initialScore);
   });
 
   it('powers doors locally using deployed Turbine Generator even if main power grid is off', () => {
@@ -384,4 +381,3 @@ describe('Zombie Ultimate Experience — Manager & Preset', () => {
     manager.dispose();
   });
 });
-

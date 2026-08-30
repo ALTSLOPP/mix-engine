@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>FSR GPU smoke test</title>
+<style>body{background:#151920;color:#eee;font:14px monospace;padding:24px}canvas{max-width:100%;height:auto}pre{white-space:pre-wrap}</style></head>
+<body><h1>FSR GPU smoke test</h1><pre id="results">Running…</pre>
+<script type="module">
+import * as THREE from 'three';
+import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
+import { FsrUpscaler } from '/src/rendering/FsrUpscaler.ts';
+const results = document.querySelector('#results');
+const lines = [];
+let renderer, input, quad, material, upscaler;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
+  renderer.setSize(1600, 900);
+  document.body.append(renderer.domElement);
+  const gl = renderer.getContext();
+  renderer.debug.onShaderError = (gl, program, vertex, fragment) => {
+    throw new Error(gl.getProgramInfoLog(program) + '\n' + gl.getShaderInfoLog(fragment));
+  };
+  input = new THREE.WebGLRenderTarget(960, 540, { depthBuffer: false, type: THREE.UnsignedByteType });
+  material = new THREE.ShaderMaterial({
+    uniforms: { pattern: { value: 0 } },
+    vertexShader: 'void main(){gl_Position=vec4(position.xy,0.,1.);}',
+    fragmentShader: `uniform int pattern; void main(){
+      float c=pattern==0 ? 0.5 : step(0.5,fract((gl_FragCoord.x+gl_FragCoord.y)*0.075));
+      gl_FragColor=vec4(vec3(c),1.);
+    }`,
+    toneMapped: false, depthTest: false, depthWrite: false,
+  });
+  quad = new FullScreenQuad(material);
+  upscaler = new FsrUpscaler();
+  upscaler.setSize(1600, 900);
+  function source(pattern) {
+    material.uniforms.pattern.value = pattern;
+    renderer.setRenderTarget(input); quad.render(renderer); renderer.setRenderTarget(null);
+  }
+  function read() {
+    const pixels = new Uint8Array(1600*900*4);
+    gl.readPixels(0,0,1600,900,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+    if(gl.getError() !== gl.NO_ERROR) throw new Error('WebGL error during presentation/readback');
+    return pixels;
+  }
+  source(0);
+  for(const [enabled,sharpness] of [[true,0.35],[true,0],[false,0.35]]) {
+    upscaler.configure(enabled,sharpness); upscaler.render(renderer,input);
+    const p=read();
+    for(const offset of [0,(450*1600+800)*4,p.length-4]) {
+      if(Math.abs(p[offset]-128)>2 || p[offset+3]!==255) throw new Error('Flat-color/edge/color-space mismatch');
+    }
+    lines.push('PASS: flat color and image borders, FSR='+enabled+', sharpness='+sharpness);
+  }
+  source(1);
+  upscaler.configure(false,0.35); upscaler.render(renderer,input);
+  const basic=read();
+  upscaler.configure(true,0.35); upscaler.render(renderer,input);
+  const fsr=read();
+  let difference=0,bright=0,dark=0;
+  for(let i=0;i<fsr.length;i+=4) {
+    difference+=Math.abs(fsr[i]-basic[i]);
+    bright+=fsr[i]>240 ? 1:0; dark+=fsr[i]<15 ? 1:0;
+  }
+  if(difference<1000 || bright<1000 || dark<1000) throw new Error('FSR output missing or indistinguishable from basic scaling');
+  lines.push('PASS: EASU/RCAS compile, render high-contrast detail and differ from bilinear');
+  renderer.setSize(960,540); upscaler.setSize(960,540); upscaler.render(renderer,input);
+  if(gl.getError()!==gl.NO_ERROR) throw new Error('Native bypass failed');
+  lines.push('PASS: resize and native bypass');
+  renderer.setSize(1600,900); upscaler.setSize(1600,900); upscaler.render(renderer,input);
+  results.textContent=lines.join('\n')+'\nALL GPU CHECKS PASSED';
+} catch(error) {
+  results.textContent=lines.join('\n')+'\nFAIL: '+error.message;
+  console.error(error);
+} finally {
+  upscaler?.dispose(); quad?.dispose(); material?.dispose(); input?.dispose();
+  renderer?.dispose();
+}
+</script></body></html>

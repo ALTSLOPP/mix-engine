@@ -221,6 +221,11 @@ export class RangedShooterSystem {
     this._cameraDir.y += spreadY;
     this._cameraDir.normalize();
 
+    this.engine.sceneManager.events.emit('ranged_weapon_fired', {
+      shooterId, weaponId: this.currentWeapon.id, origin: this._rayOrigin.clone(),
+      direction: this._cameraDir.clone(), noiseRadius: 35,
+    });
+
     // Muzzle line-of-sight check to prevent shooting through solid walls behind/beside muzzle
     if (playerRb?.rapierBody && this.engine.physicsWorld?.raycastExcludeBody) {
       const muzzleCheck = this.engine.physicsWorld.raycastExcludeBody(
@@ -257,6 +262,7 @@ export class RangedShooterSystem {
           this.engine.combat?.applyDamage?.(playerEntityId, id, damage);
           this.engine.sceneManager?.events?.emit('crosshair_hit', {
             targetId: id,
+            hitPosition: hit.point.clone(),
             damage,
             isHeadshot,
           });
@@ -349,7 +355,7 @@ export class RangedShooterSystem {
       this.wallPush = THREE.MathUtils.lerp(this.wallPush, targetPush, Math.min(16 * dt, 1));
     }
 
-    this.updatePresentation();
+    // Presentation is owned by GameplayFeatureManager.updateRealtime.
   }
 
   /** Semi-auto requires a new press; legacy weapons retain their held-fire behavior. */

@@ -3,6 +3,7 @@ import type { GameplayFeatureManager } from './GameplayFeatureManager';
 import type { GameSettingsConfig, ObjectiveState } from './GeneralFeatureTypes';
 import { escapeHtml } from '../../ui/domUtils';
 import { generalGameplayStyles } from './GeneralGameplayStyles';
+import { graphicsSettingsControls } from './GraphicsSettingsControls';
 
 type Tab = 'overview' | 'display' | 'audio' | 'controls' | 'objectives';
 const escape = (value: unknown) => escapeHtml(String(value));
@@ -107,7 +108,7 @@ export class GeneralGameplayUI {
     return `<div class="row"><label for="setting-${key}">${label}<small>${description}</small></label><input id="setting-${key}" data-setting="${key}" type="checkbox" ${value ? 'checked' : ''}></div>`;
   }
   private content(c: Readonly<GameSettingsConfig>): string {
-    if (this.tab === 'display') return `<h2>Make it look right.</h2><p class="intro">Tune image quality for your screen and hardware. Lower resolution scale improves performance.</p><div class="presets"><button data-quality="low">Performance</button><button data-quality="balanced">Balanced</button><button data-quality="high">Quality</button></div>${this.range('renderScale', 'Resolution scale', 'Internal render resolution', 0.5, 1.5, 0.05, c.renderScale)}${this.range('fieldOfView', 'Field of view', 'Camera viewing angle', 45, 100, 1, c.fieldOfView)}${this.range('exposure', 'Brightness / exposure', 'Scene exposure', 0.2, 2, 0.05, c.exposure)}${this.toggle('shadows', 'Dynamic shadows', 'Shadows cast by scene lights', c.shadows)}${this.toggle('bloom', 'Bloom', 'Glow around bright surfaces', c.bloom)}${this.toggle('ambientOcclusion', 'Ambient occlusion', 'Soft shading around contact points', c.ambientOcclusion)}`;
+    if (this.tab === 'display') return `<h2>Display & performance</h2>${graphicsSettingsControls(c)}${this.range('fieldOfView', 'Field of view', 'Camera viewing angle', 45, 100, 1, c.fieldOfView)}${this.range('exposure', 'Brightness / exposure', 'Scene exposure', 0.2, 2, 0.05, c.exposure)}`;
     if (this.tab === 'audio') return `<h2>Find your balance.</h2><p class="intro">Adjust the mix without changing individual sounds in your scene.</p>${this.range('masterVolume', 'Master volume', 'All game audio', 0, 1, 0.05, c.masterVolume)}${this.range('musicVolume', 'Music', 'Music bus', 0, 1, 0.05, c.musicVolume)}${this.range('sfxVolume', 'Sound effects', 'Gameplay and world sounds', 0, 1, 0.05, c.sfxVolume)}`;
     if (this.tab === 'controls') return `<h2>Your way to play.</h2><p class="intro">Fine-tune mouse look. Custom action bindings remain available through the engine’s input system.</p>${this.range('mouseSensitivity', 'Mouse sensitivity', 'Camera turn speed', 0.0005, 0.01, 0.0005, c.mouseSensitivity)}${this.toggle('invertY', 'Invert vertical look', 'Reverse mouse and controller Y look', c.invertY)}<div class="home-card"><p><span class="key">W A S D</span> Move</p><p style="margin-top:12px"><span class="key">ESC</span> Pause / resume</p></div>`;
     if (this.tab === 'objectives') return `<h2>${escape(this.features.objectives.getConfig().title)}</h2><p class="intro">Keep track of what comes next.</p>${this.objectiveRows(this.features.objectives.items) || '<div class="empty">No objectives yet. Add them through the objective tracker module.</div>'}`;
@@ -134,12 +135,13 @@ export class GeneralGameplayUI {
     this.features.settings.setPreferences({ [input.dataset.setting]: input.type === 'checkbox' ? input.checked : Number(input.value) });
     const output = input.parentElement?.querySelector('output');
     if (output) output.textContent = input.value;
+    if (input.tagName === 'SELECT') { this.renderMenu(); this.root?.querySelector<HTMLElement>(`#${input.id}`)?.focus(); }
   };
   private readonly onKey = (event: KeyboardEvent) => {
     if (!this.wasOpen) return;
     event.stopPropagation();
     if (event.key !== 'Tab' || !this.root) return;
-    const controls = [...this.root.querySelectorAll<HTMLElement>('.modal button, .modal input')];
+    const controls = [...this.root.querySelectorAll<HTMLElement>('.modal button, .modal input:not(:disabled), .modal select')];
     const first = controls[0], last = controls[controls.length - 1];
     if (event.shiftKey && this.root.activeElement === first) { event.preventDefault(); last?.focus(); }
     if (!event.shiftKey && this.root.activeElement === last) { event.preventDefault(); first?.focus(); }

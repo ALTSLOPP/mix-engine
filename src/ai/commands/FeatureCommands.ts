@@ -1,12 +1,11 @@
 import * as THREE from 'three';
 import type { CommandMap, CmdCtx } from './BridgeContext';
 import { GameplayFeatureRegistry } from '../../features/gameplay/GameplayFeatureRegistry';
-import type { GameplayFeatureId } from '../../features/gameplay/types';
 import type { CityGenerationConfig } from '../../features/city/types';
 
 export function register(map: CommandMap, ctx: CmdCtx): void {
   const warnMissing = (cmd: string) =>
-    console.warn(`[AIBridge] ${cmd}: gameplayFeatures manager not available.`);
+    ctx.setQueryResult({ ok: false, code: 'MANAGER_UNAVAILABLE', command: cmd });
 
   const general = (run: (features: NonNullable<CmdCtx['gameplayFeatures']>, cmd: any) => unknown) => {
     return (cmd: any) => {
@@ -40,46 +39,31 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
     return list;
   });
 
-  map.set('feature_enable', (cmd: { type: 'feature_enable'; feature: GameplayFeatureId }) => {
-    if (!ctx.gameplayFeatures) return warnMissing('feature_enable');
-    ctx.gameplayFeatures.enableFeature(cmd.feature);
-    ctx.setQueryResult({ ok: true, feature: cmd.feature, enabled: true });
+  const mutate = (run: (f: NonNullable<CmdCtx['gameplayFeatures']>, cmd: any) => Record<string, unknown>) => general((f, cmd) => {
+    if (cmd.feature && !GameplayFeatureRegistry.get(cmd.feature)) return { ok: false, code: 'INVALID_FEATURE', feature: cmd.feature };
+    try { return run(f, cmd); }
+    catch (error) { return { ok: false, code: 'INVALID_CONFIGURATION', error: String(error) }; }
   });
-
-  map.set('feature_disable', (cmd: { type: 'feature_disable'; feature: GameplayFeatureId }) => {
-    if (!ctx.gameplayFeatures) return warnMissing('feature_disable');
-    ctx.gameplayFeatures.disableFeature(cmd.feature);
-    ctx.setQueryResult({ ok: true, feature: cmd.feature, enabled: false });
-  });
-
-  map.set('feature_configure', (cmd: { type: 'feature_configure'; feature: GameplayFeatureId; config: Record<string, unknown> }) => {
-    if (!ctx.gameplayFeatures) return warnMissing('feature_configure');
-    ctx.gameplayFeatures.configureFeature(cmd.feature, cmd.config as any);
-    ctx.setQueryResult({ ok: true, feature: cmd.feature });
-  });
-
-  map.set('feature_enable_all', () => {
-    if (!ctx.gameplayFeatures) return warnMissing('feature_enable_all');
-    ctx.gameplayFeatures.enableAllFeatures();
-    ctx.setQueryResult({ ok: true, allEnabled: true });
-  });
-
-  map.set('feature_apply_preset', (cmd: { type: 'feature_apply_preset'; preset: 'souls' | 'action' | 'shooter' | 'anime' | 'defaults' | 'essentials' | 'city_builder' | 'gta_open_world' | 'fps_starter' }) => {
-    if (!ctx.gameplayFeatures) return warnMissing('feature_apply_preset');
-    ctx.gameplayFeatures.applyPreset(cmd.preset);
-    ctx.setQueryResult({ ok: true, preset: cmd.preset });
-  });
-
-  map.set('arena_start', () => {
-    if (!ctx.gameplayFeatures) return warnMissing('arena_start');
-    ctx.gameplayFeatures.arena.startArena();
-    ctx.setQueryResult({ ok: true, arenaStarted: true });
-  });
+  map.set('feature_enable', mutate((f, cmd) => ({ ok: f.enableFeature(cmd.feature), feature: cmd.feature, enabled: f.isFeatureEnabled(cmd.feature) })));
+  map.set('feature_disable', mutate((f, cmd) => ({ ok: f.disableFeature(cmd.feature), feature: cmd.feature, enabled: f.isFeatureEnabled(cmd.feature) })));
+  map.set('feature_configure', mutate((f, cmd) => {
+    f.configureFeature(cmd.feature, cmd.config);
+    return { ok: true, feature: cmd.feature, config: f.getSystem(cmd.feature).getConfig() };
+  }));
+  map.set('feature_enable_all', mutate(f => {
+    f.enableAllFeatures();
+    const allEnabled = GameplayFeatureRegistry.list().every(d => f.isFeatureEnabled(d.id));
+    return { ok: allEnabled, allEnabled };
+  }));
+  map.set('feature_apply_preset', mutate((f, cmd) => ({ ok: true, preset: cmd.preset, enabledFeatures: f.applyPreset(cmd.preset) })));
+  map.set('arena_start', general(f => { const ok = f.arena.startArena(); return { ok, arenaStarted: ok }; }));
 
   map.set('target_lock_toggle', () => {
     if (!ctx.gameplayFeatures) return warnMissing('target_lock_toggle');
+    const before = ctx.gameplayFeatures.targetLock.isLocked;
     ctx.gameplayFeatures.targetLock.toggleLock();
-    ctx.setQueryResult({ ok: true, isLocked: ctx.gameplayFeatures.targetLock.isLocked });
+    const isLocked = ctx.gameplayFeatures.targetLock.isLocked;
+    ctx.setQueryResult({ ok: before !== isLocked, isLocked });
   });
 
 
@@ -92,9 +76,9 @@ export function register(map: CommandMap, ctx: CmdCtx): void {
   map.set('arena_launch_demo', () => {
     if (!ctx.gameplayFeatures) return warnMissing('arena_launch_demo');
     ctx.gameplayFeatures.enableAllFeatures();
-    ctx.gameplayFeatures.arena.startArena();
-    ctx.input.setMode('play');
-    ctx.setQueryResult({ ok: true, demoLaunched: true });
+    const ok = ctx.gameplayFeatures.arena.startArena();
+    if (ok) ctx.input.setMode('play');
+    ctx.setQueryResult({ ok, demoLaunched: ok });
   });
 
   map.set('destruction_slice_mesh', (cmd: { type: 'destruction_slice_mesh'; entityId: number; planePoint?: { x: number; y: number; z: number }; planeNormal?: { x: number; y: number; z: number }; separationForce?: number }) => {

@@ -46,7 +46,6 @@ interface QualityLevel {
 export class QualityScaler {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly pipeline: RenderPipeline | null;
-  private readonly basePixelRatio: number;
 
   private readonly levels: QualityLevel[] = [
     { scale: 1.0, disablePasses: [], shadows: true },
@@ -71,11 +70,12 @@ export class QualityScaler {
   private running = false;
   /** Capture original pass-enabled flags so disable() can restore them exactly. */
   private readonly originalPassEnabled = new Map<string, boolean>();
+  private originalShadows = false;
+  private originalPixelRatio = 1;
 
   constructor(renderer: THREE.WebGLRenderer, pipeline?: RenderPipeline | null, opts: QualityScalerOptions = {}) {
     this.renderer = renderer;
     this.pipeline = pipeline ?? null;
-    this.basePixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     this.targetFps = opts.targetFps ?? 55;
     this.downHysteresis = opts.downHysteresis ?? 8;
     this.upHysteresis = opts.upHysteresis ?? 12;
@@ -94,6 +94,9 @@ export class QualityScaler {
   enable(): void {
     if (this.running) return;
     this.running = true;
+    this.originalShadows = this.renderer.shadowMap.enabled;
+    this.originalPixelRatio = this.renderer.getPixelRatio();
+    this.originalPassEnabled.clear();
     this.lastSampleTime = performance.now();
     this.frameCount = 0;
     const loop = () => {
@@ -140,11 +143,8 @@ export class QualityScaler {
     this.currentLevel = index;
 
     // 1. Render resolution.
-    this.renderer.setPixelRatio(this.basePixelRatio * level.scale);
-    const canvas = this.renderer.domElement;
-    const w = canvas.clientWidth || canvas.width;
-    const h = canvas.clientHeight || canvas.height;
-    if (w > 0 && h > 0) this.pipeline?.setSize(w, h);
+    if (this.pipeline) this.pipeline.setDynamicResolutionScale(level.scale);
+    else this.renderer.setPixelRatio(this.originalPixelRatio * level.scale);
 
     // 2. Expensive post passes (best-effort; remember originals to restore on level 0).
     if (this.pipeline) {
@@ -160,8 +160,9 @@ export class QualityScaler {
     }
 
     // 3. Shadows.
-    if (this.renderer.shadowMap.enabled !== level.shadows) {
-      this.renderer.shadowMap.enabled = level.shadows;
+    const shadows = this.originalShadows && level.shadows;
+    if (this.renderer.shadowMap.enabled !== shadows) {
+      this.renderer.shadowMap.enabled = shadows;
       this.renderer.shadowMap.needsUpdate = true;
     }
   }

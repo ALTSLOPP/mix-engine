@@ -1,4 +1,5 @@
 import type { FeatureDescriptor } from './types';
+import { LOW_SPEC_RESOLUTION } from '../../rendering/RenderResolution';
 import type { GameSettingsConfig, NotificationsConfig, ObjectiveTrackerConfig, PauseMenuConfig, SessionFlowConfig } from './GeneralFeatureTypes';
 
 const enabled = { key: 'enabled', label: 'Feature enabled', type: 'boolean' as const, default: true };
@@ -14,8 +15,21 @@ export const generalFeatureDescriptors: FeatureDescriptor<any>[] = [
     id: 'game_settings', name: 'Player Settings', category: 'general', icon: '⚙',
     description: 'Live graphics, resolution scale, camera FOV, audio bus levels, mouse sensitivity and invert-Y settings. Optional browser-local preference persistence.',
     tags: ['settings', 'graphics', 'visual', 'audio', 'controls'],
-    defaultConfig: { enabled: true, persist: true, storageKey: 'mix-player-settings', renderScale: 1, exposure: 0.6, fieldOfView: 58, shadows: true, bloom: true, ambientOcclusion: true, masterVolume: 1, musicVolume: 1, sfxVolume: 1, mouseSensitivity: 0.0025, invertY: false } satisfies GameSettingsConfig,
-    properties: [enabled, { key: 'persist', label: 'Remember player preferences', type: 'boolean', default: true }, { key: 'storageKey', label: 'Preference storage namespace', type: 'string', default: 'mix-player-settings' }, { key: 'renderScale', label: 'Resolution scale', type: 'number', min: 0.5, max: 1.5, step: 0.05, default: 1 }, { key: 'fieldOfView', label: 'Field of view', type: 'number', min: 45, max: 100, step: 1, default: 58 }, { key: 'exposure', label: 'Exposure', type: 'number', min: 0.2, max: 2, step: 0.05, default: 0.6 }, { key: 'shadows', label: 'Dynamic shadows', type: 'boolean', default: true }, { key: 'bloom', label: 'Bloom', type: 'boolean', default: true }, { key: 'ambientOcclusion', label: 'Ambient occlusion', type: 'boolean', default: true }],
+    defaultConfig: { ...LOW_SPEC_RESOLUTION, enabled: true, persist: true, storageKey: 'mix-player-settings', exposure: 0.6, fieldOfView: 58, shadows: false, bloom: false, ambientOcclusion: false, masterVolume: 1, musicVolume: 1, sfxVolume: 1, mouseSensitivity: 0.0025, invertY: false } satisfies GameSettingsConfig,
+    properties: [enabled,
+      { key: 'persist', label: 'Remember player preferences', type: 'boolean', default: true },
+      { key: 'storageKey', label: 'Preference storage namespace', type: 'string', default: 'mix-player-settings' },
+      { key: 'fsrEnabled', label: 'FSR 1 upscaling', type: 'boolean', default: true },
+      { key: 'internalHeight', label: 'Internal height cap (0 = scale)', type: 'number', min: 0, max: 4320, step: 1, default: 540 },
+      { key: 'outputHeight', label: 'Output height cap (0 = native)', type: 'number', min: 0, max: 4320, step: 1, default: 900 },
+      { key: 'fsrSharpness', label: 'FSR sharpening', type: 'number', min: 0, max: 1, step: 0.05, default: 0.35 },
+      { key: 'renderScale', label: 'Automatic resolution scale', type: 'number', min: 0.5, max: 1.5, step: 0.05, default: 0.6 },
+      { key: 'fieldOfView', label: 'Field of view', type: 'number', min: 45, max: 100, step: 1, default: 58 },
+      { key: 'exposure', label: 'Exposure', type: 'number', min: 0.2, max: 2, step: 0.05, default: 0.6 },
+      { key: 'shadows', label: 'Dynamic shadows', type: 'boolean', default: false },
+      { key: 'bloom', label: 'Bloom', type: 'boolean', default: false },
+      { key: 'ambientOcclusion', label: 'Ambient occlusion', type: 'boolean', default: false },
+    ],
   },
   {
     id: 'objective_tracker', name: 'Objective Tracker', category: 'general', icon: '◎',

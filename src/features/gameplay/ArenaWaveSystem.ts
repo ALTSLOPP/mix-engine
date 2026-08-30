@@ -71,8 +71,8 @@ export class ArenaWaveSystem {
 
   // ── Arena Lifecycle ──────────────────────────────────────────────────────
 
-  startArena(): void {
-    if (!this.config.enabled || this.config.waves.length === 0) return;
+  startArena(): boolean {
+    if (!this.config.enabled || this.config.waves.length === 0) return false;
 
     this.clearSpawnedEnemies();
     this.state.active = true;
@@ -80,6 +80,7 @@ export class ArenaWaveSystem {
     this.state.totalKills = 0;
     this.state.startTime = performance.now();
     this.startWaveCountdown(0);
+    return true;
   }
 
   restartArena(): void {

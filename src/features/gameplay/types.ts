@@ -3,71 +3,7 @@ import type { PauseMenuConfig, GameSettingsConfig, ObjectiveTrackerConfig, Notif
 export type * from './GeneralFeatureTypes';
 import type { EntityId } from '../../ecs/SceneManager';
 
-export type GameplayFeatureId =
-  | 'target_lock'
-  | 'timed_hitboxes'
-  | 'combo_system'
-  | 'dodge_guard_stamina'
-  | 'hit_reactions'
-  | 'abilities_magic'
-  | 'enemy_boss_ai'
-  | 'stats_progression'
-  | 'arena_flow'
-  | 'stealth_detection'
-  | 'parkour_traversal'
-  | 'loot_inventory'
-  | 'dialogue_system'
-  | 'ranged_shooter'
-  | 'vehicle_mount'
-  | 'grapple_swing'
-  | 'time_mechanics'
-  | 'crafting_gathering'
-  | 'companion_summon'
-  | 'weapon_wheel_loadout'
-  | 'cover_peeking'
-  | 'ballistics_explosives'
-  | 'killstreaks_rewards'
-  | 'bonfire_checkpoint'
-  | 'estus_flask_healing'
-  | 'bloodstain_souls'
-  | 'posture_visceral'
-  | 'two_axis_combat'
-  | 'shrinking_storm'
-  | 'superhero_flight_system'
-  | 'deformable_ground'
-  | 'anime_combat_director'
-  | 'procedural_city_generator'
-  | 'pause_menu'
-  | 'game_settings'
-  | 'objective_tracker'
-  | 'game_notifications'
-  | 'session_flow'
-  | 'traffic_simulation'
-  | 'civilian_population'
-  | 'wanted_crime'
-  | 'police_response'
-  | 'vehicle_theft'
-  | 'escort_missions'
-  | 'minimap_radar'
-  | 'spaceship_flight'
-  | 'phone_shell'
-  | 'phone_messaging'
-  | 'social_encounter'
-  | 'location_visits'
-  | 'zombie_horde_ai'
-  | 'barricade_boarding'
-  | 'mystery_box_gambling'
-  | 'perk_vending_machines'
-  | 'pack_a_punch_upgrade'
-  | 'infection_immunity_meter'
-  | 'power_grid_doors'
-  | 'zombie_powerups_drops'
-  | 'zombie_wonder_weapons'
-  | 'zombie_boss_encounters'
-  | 'zombie_craftable_traps'
-  | 'zombie_easter_egg_quest'
-  | 'zombie_gobs_elixirs'
-  | 'zombie_hellhounds_round';
+export type GameplayFeatureId = keyof GameplayFeatureConfigMap;
 
 export type FeatureCategory =
   | 'general'
@@ -113,6 +49,8 @@ export interface FeatureDescriptor<TConfig = Record<string, unknown>> {
   defaultConfig: TConfig;
   properties: FeaturePropertySchema[];
   presets?: Record<string, Partial<TConfig>>;
+  /** Required feature activation dependencies; optional integrations must tolerate absence. */
+  requires?: GameplayFeatureId[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1008,6 +946,7 @@ export interface TrafficSimulationConfig {
 }
 
 export interface TrafficCarState {
+  driverId?: string | null;
   id: string;
   active: boolean;
   route: RoadRouteDef;
@@ -1034,6 +973,7 @@ export interface CivilianPopulationConfig {
 }
 
 export interface CivilianState {
+  vehicleId?: string | null;
   id: string;
   entityId: EntityId | null;
   mode: CivilianBehaviorMode;
@@ -1855,6 +1795,3 @@ export interface HellhoundsRoundState {
   houndsRemaining: number;
   houndsAlive: number;
 }
-
-
-

@@ -1,3 +1,4 @@
+import { validateFeatureRuntime } from './RuntimeSnapshot';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { CrimeReport, CrimeType, WantedCrimeConfig, WantedState } from './types';
@@ -38,12 +39,13 @@ export class WantedCrimeSystem {
     if (!events) return;
 
     const u1 = events.on('civilian_killed', (e: any) => {
-      if (e?.killerEntityId === (this.engine.player?.getPossessedId?.() ?? 1)) {
+      const playerId = this.engine.player?.getPossessedId?.() ?? null;
+      if (playerId !== null && e?.killerEntityId === playerId) {
         this.reportCrime('homicide', e.position ?? new THREE.Vector3());
       }
     });
 
-    const u2 = events.on('civilian_ejected', (e: any) => {
+    const u2 = events.on('vehicle_theft_committed', (e: any) => {
       this.reportCrime('vehicle_theft', e.position ?? new THREE.Vector3());
     });
 
@@ -211,6 +213,7 @@ export class WantedCrimeSystem {
   }
 
   fromJSON(data: Record<string, unknown>): void {
+    validateFeatureRuntime('wanted_crime', data);
     if (typeof data.wantedLevel === 'number') this.wantedLevel = data.wantedLevel;
     if (typeof data.heat === 'number') this.heat = data.heat;
     if (typeof data.timeSinceLastCrimeSec === 'number') this.timeSinceLastCrimeSec = data.timeSinceLastCrimeSec;

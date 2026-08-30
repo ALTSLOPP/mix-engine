@@ -1,3 +1,4 @@
+import { validateFeatureRuntime } from './RuntimeSnapshot';
 import type { Engine } from '../../engine/Engine';
 import type { InfectionConfig, InfectionStage, InfectionState } from './types';
 
@@ -62,7 +63,7 @@ export class InfectionImmunitySystem {
     this.evaluateStage();
 
     this.engine.sceneManager?.events?.emit('infection_changed', {
-      infectionPercent: this.state.infectionPercent,
+      ...this.state, tickCooldown: this.tickCooldown,
       stage: this.state.currentStage,
     });
 
@@ -102,7 +103,8 @@ export class InfectionImmunitySystem {
   }
 
   private triggerZombification(): void {
-    const playerEntityId = this.engine.player?.getPossessedId?.() ?? 1;
+    const playerEntityId = this.engine.player?.getPossessedId?.() ?? null;
+    if (playerEntityId === null || !this.engine.sceneManager.getRigidBody(playerEntityId)) return;
     this.engine.combat?.applyDamage?.(null, playerEntityId, 9999);
     this.engine.sceneManager?.events?.emit('player_zombified', {});
   }
@@ -131,7 +133,8 @@ export class InfectionImmunitySystem {
       this.tickCooldown -= dt;
       if (this.tickCooldown <= 0) {
         this.tickCooldown = 1.0;
-        const playerEntityId = this.engine.player?.getPossessedId?.() ?? 1;
+        const playerEntityId = this.engine.player?.getPossessedId?.() ?? null;
+    if (playerEntityId === null || !this.engine.sceneManager.getRigidBody(playerEntityId)) return;
         this.engine.combat?.applyDamage?.(null, playerEntityId, this.config.tickDamageCritical);
       }
     }
@@ -150,6 +153,12 @@ export class InfectionImmunitySystem {
   }
 
   fromJSON(data: Record<string, unknown>): void {
+    validateFeatureRuntime('infection_immunity_meter', data);
+    this.state.infectionPercent = 0;
+    this.state.currentStage = 'none';
+    this.state.hasImmunityBoost = data.hasImmunityBoost === true;
+    this.state.immunityTimeRemaining = Number(data.immunityTimeRemaining ?? 0);
+    this.tickCooldown = Number(data.tickCooldown ?? 0);
     if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
     if (typeof data.infectionPercent === 'number') {
       this.state.infectionPercent = data.infectionPercent;

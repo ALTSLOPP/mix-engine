@@ -1,3 +1,5 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
+import { gameplayWallet } from './GameplayWallet';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { MysteryBoxConfig, MysteryBoxLocation, MysteryBoxState, MysteryBoxWeaponDef } from './types';
@@ -48,6 +50,7 @@ export class MysteryBoxSystem {
 
   constructor(private readonly engine: Engine, initialConfig: MysteryBoxConfig = DEFAULT_MYSTERY_BOX_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'MysteryBoxRoot';
     this.setupVisuals();
     this.bindEvents();
@@ -118,6 +121,7 @@ export class MysteryBoxSystem {
 
   setConfig(config: Partial<MysteryBoxConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
     if (config.locations) {
       this.config.locations = [...config.locations];
       this.updateBoxPosition();
@@ -148,13 +152,13 @@ export class MysteryBoxSystem {
     }
 
     const cost = this.getEffectiveCost();
-    const currentScore = (this.engine.sceneManager?.gameState as any)?.score ?? 999999;
+    const currentScore = gameplayWallet(this.engine).getBalance();
     if (currentScore < cost) {
       this.engine.sceneManager?.events?.emit('mystery_box_insufficient_points', { cost, currentScore });
       return false;
     }
 
-    (this.engine.sceneManager?.gameState as any)?.addScore?.(-cost);
+    if (!gameplayWallet(this.engine).trySpend(cost)) return false;
 
     this.state.isSpinning = true;
     this.state.currentRolledWeapon = null;
@@ -180,7 +184,7 @@ export class MysteryBoxSystem {
   }
 
   grabWeapon(): string | null {
-    if (!this.state.currentRolledWeapon || this.state.grabTimeRemaining <= 0) {
+    if (!this.config.enabled || !this.state.currentRolledWeapon || this.state.grabTimeRemaining <= 0) {
       return null;
     }
 
@@ -203,6 +207,7 @@ export class MysteryBoxSystem {
   }
 
   relocateBox(): void {
+    if (!this.config.enabled) return;
     const otherLocs = this.config.locations.filter((l) => l.id !== this.state.activeLocationId);
     if (otherLocs.length > 0) {
       const nextLoc = otherLocs[Math.floor(Math.random() * otherLocs.length)];
@@ -263,11 +268,12 @@ export class MysteryBoxSystem {
     this.unsubs.forEach((u) => u());
     this.unsubs.length = 0;
     this.engine.viewport?.scene?.remove(this.rootGroup);
-    this.rootGroup.clear();
+    disposeOwnedObject(this.rootGroup);
   }
 
   toJSON(): Record<string, unknown> {
     return {
+      ...this.state, spinTimer: this.spinTimer, isTeddyBear: this.isTeddyBear, isFireSaleActive: this.isFireSaleActive,
       enabled: this.config.enabled,
       activeLocationId: this.state.activeLocationId,
       totalSpinsInCurrentLocation: this.state.totalSpinsInCurrentLocation,
@@ -275,7 +281,13 @@ export class MysteryBoxSystem {
   }
 
   fromJSON(data: Record<string, unknown>): void {
-    if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
+    this.state.isSpinning = data.isSpinning === true;
+    this.state.currentRolledWeapon = typeof data.currentRolledWeapon === 'string' ? data.currentRolledWeapon : null;
+    this.state.grabTimeRemaining = Number(data.grabTimeRemaining ?? 0);
+    this.spinTimer = Number(data.spinTimer ?? 0);
+    this.isTeddyBear = data.isTeddyBear === true;
+    this.isFireSaleActive = data.isFireSaleActive === true;
+    if (typeof data.enabled === 'boolean') this.setConfig({ enabled: data.enabled });
     if (typeof data.activeLocationId === 'string') {
       this.state.activeLocationId = data.activeLocationId;
       this.updateBoxPosition();

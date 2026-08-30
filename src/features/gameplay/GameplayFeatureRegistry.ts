@@ -1,3 +1,4 @@
+import { DEFAULT_FLIGHT_PARAMS } from '../../character/SuperheroFlightMotor';
 import type {
   FeatureDescriptor,
   GameplayFeatureId,
@@ -90,6 +91,10 @@ export class GameplayFeatureRegistry {
 
   static list(): FeatureDescriptor<any>[] {
     return Array.from(this.descriptors.values());
+  }
+
+  static getInactiveDefaults<TConfig>(id: GameplayFeatureId): TConfig {
+    return { ...this.getDefaults<any>(id), enabled: false };
   }
 
   static getDefaults<TConfig>(id: GameplayFeatureId): TConfig {
@@ -2108,38 +2113,6 @@ const zombiePowerupsDescriptor: FeatureDescriptor<ZombiePowerupsConfig> = {
 };
 
 // ── Feature Registration ────────────────────────────────────────────────────
-GameplayFeatureRegistry.register(targetLockDescriptor);
-GameplayFeatureRegistry.register(timedHitboxDescriptor);
-GameplayFeatureRegistry.register(comboDescriptor);
-GameplayFeatureRegistry.register(dodgeGuardStaminaDescriptor);
-GameplayFeatureRegistry.register(hitReactionDescriptor);
-GameplayFeatureRegistry.register(abilityElementalDescriptor);
-GameplayFeatureRegistry.register(encounterAIDescriptor);
-GameplayFeatureRegistry.register(statsProgressionDescriptor);
-GameplayFeatureRegistry.register(arenaWaveDescriptor);
-GameplayFeatureRegistry.register(stealthDescriptor);
-GameplayFeatureRegistry.register(parkourDescriptor);
-GameplayFeatureRegistry.register(lootInventoryDescriptor);
-GameplayFeatureRegistry.register(dialogueDescriptor);
-GameplayFeatureRegistry.register(rangedShooterDescriptor);
-GameplayFeatureRegistry.register(vehicleMountDescriptor);
-GameplayFeatureRegistry.register(grappleHookDescriptor);
-GameplayFeatureRegistry.register(timeMechanicsDescriptor);
-GameplayFeatureRegistry.register(craftingGatheringDescriptor);
-GameplayFeatureRegistry.register(companionSummonDescriptor);
-GameplayFeatureRegistry.register(weaponLoadoutDescriptor);
-GameplayFeatureRegistry.register(coverPeekingDescriptor);
-GameplayFeatureRegistry.register(explosivesDescriptor);
-GameplayFeatureRegistry.register(killstreakDescriptor);
-GameplayFeatureRegistry.register(bonfireCheckpointDescriptor);
-GameplayFeatureRegistry.register(estusFlaskDescriptor);
-GameplayFeatureRegistry.register(bloodstainSoulsDescriptor);
-GameplayFeatureRegistry.register(postureVisceralDescriptor);
-GameplayFeatureRegistry.register(twoAxisCombatDescriptor);
-GameplayFeatureRegistry.register(shrinkingStormDescriptor);
-GameplayFeatureRegistry.register(superheroFlightDescriptor);
-GameplayFeatureRegistry.register(deformableGroundDescriptor);
-GameplayFeatureRegistry.register(animeCombatDirectorDescriptor);
 GameplayFeatureRegistry.register(proceduralCityDescriptor);
 
 // GTA & Open World Registrations
@@ -2291,55 +2264,10 @@ const hellhoundsDescriptor: FeatureDescriptor<HellhoundsConfig> = {
 };
 
 // ── Feature Registration ────────────────────────────────────────────────────
-GameplayFeatureRegistry.register(targetLockDescriptor);
-GameplayFeatureRegistry.register(timedHitboxDescriptor);
-GameplayFeatureRegistry.register(comboDescriptor);
-GameplayFeatureRegistry.register(dodgeGuardStaminaDescriptor);
-GameplayFeatureRegistry.register(hitReactionDescriptor);
-GameplayFeatureRegistry.register(abilityElementalDescriptor);
-GameplayFeatureRegistry.register(encounterAIDescriptor);
-GameplayFeatureRegistry.register(statsProgressionDescriptor);
-GameplayFeatureRegistry.register(arenaWaveDescriptor);
-GameplayFeatureRegistry.register(stealthDescriptor);
-GameplayFeatureRegistry.register(parkourDescriptor);
-GameplayFeatureRegistry.register(lootInventoryDescriptor);
-GameplayFeatureRegistry.register(dialogueDescriptor);
-GameplayFeatureRegistry.register(rangedShooterDescriptor);
-GameplayFeatureRegistry.register(vehicleMountDescriptor);
-GameplayFeatureRegistry.register(grappleHookDescriptor);
-GameplayFeatureRegistry.register(timeMechanicsDescriptor);
-GameplayFeatureRegistry.register(craftingGatheringDescriptor);
-GameplayFeatureRegistry.register(companionSummonDescriptor);
-GameplayFeatureRegistry.register(weaponLoadoutDescriptor);
-GameplayFeatureRegistry.register(coverPeekingDescriptor);
-GameplayFeatureRegistry.register(explosivesDescriptor);
-GameplayFeatureRegistry.register(killstreakDescriptor);
-GameplayFeatureRegistry.register(bonfireCheckpointDescriptor);
-GameplayFeatureRegistry.register(estusFlaskDescriptor);
-GameplayFeatureRegistry.register(bloodstainSoulsDescriptor);
-GameplayFeatureRegistry.register(postureVisceralDescriptor);
-GameplayFeatureRegistry.register(twoAxisCombatDescriptor);
-GameplayFeatureRegistry.register(shrinkingStormDescriptor);
-GameplayFeatureRegistry.register(superheroFlightDescriptor);
-GameplayFeatureRegistry.register(deformableGroundDescriptor);
-GameplayFeatureRegistry.register(animeCombatDirectorDescriptor);
-GameplayFeatureRegistry.register(proceduralCityDescriptor);
 
 // GTA & Open World Registrations
-GameplayFeatureRegistry.register(trafficSimulationDescriptor);
-GameplayFeatureRegistry.register(civilianPopulationDescriptor);
-GameplayFeatureRegistry.register(wantedCrimeDescriptor);
-GameplayFeatureRegistry.register(policeResponseDescriptor);
-GameplayFeatureRegistry.register(vehicleTheftDescriptor);
-GameplayFeatureRegistry.register(escortMissionDescriptor);
-GameplayFeatureRegistry.register(minimapRadarDescriptor);
-GameplayFeatureRegistry.register(spaceshipFlightDescriptor);
 
 // Phone & Social Registrations
-GameplayFeatureRegistry.register(phoneShellDescriptor);
-GameplayFeatureRegistry.register(phoneMessagingDescriptor);
-GameplayFeatureRegistry.register(socialEncounterDescriptor);
-GameplayFeatureRegistry.register(locationVisitDescriptor);
 
 // Zombie Survival Registrations
 GameplayFeatureRegistry.register(zombieHordeAIDescriptor);
@@ -2358,6 +2286,35 @@ GameplayFeatureRegistry.register(gobbleGumDescriptor);
 GameplayFeatureRegistry.register(hellhoundsDescriptor);
 
 for (const descriptor of generalFeatureDescriptors) GameplayFeatureRegistry.register(descriptor);
+
+
+
+
+
+/** Required activation dependencies (acyclic); other integrations are optional. */
+const dependencies: Partial<Record<GameplayFeatureId, GameplayFeatureId[]>> = {
+  weapon_wheel_loadout: ['ranged_shooter'],
+  mystery_box_gambling: ['weapon_wheel_loadout'],
+  pack_a_punch_upgrade: ['ranged_shooter'],
+  police_response: ['wanted_crime'],
+  vehicle_theft: ['traffic_simulation', 'civilian_population', 'wanted_crime'],
+  zombie_boss_encounters: ['zombie_horde_ai'],
+  zombie_hellhounds_round: ['zombie_horde_ai'],
+  zombie_powerups_drops: ['zombie_horde_ai'],
+  phone_messaging: ['phone_shell'],
+  social_encounter: ['phone_messaging'],
+  location_visits: ['social_encounter'],
+};
+for (const [id, requires] of Object.entries(dependencies)) {
+  GameplayFeatureRegistry.get(id as GameplayFeatureId)!.requires = requires;
+}
+
+
+
+
+
+Object.assign(superheroFlightDescriptor.defaultConfig, DEFAULT_FLIGHT_PARAMS);
+Object.assign(rangedShooterDescriptor.defaultConfig, { showViewModel: false });
 
 
 

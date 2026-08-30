@@ -1,3 +1,4 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { RoadRouteDef, TrafficCarState, TrafficSimulationConfig } from './types';
@@ -14,6 +15,7 @@ export class TrafficSimulationSystem {
 
   constructor(private readonly engine: Engine, initialConfig: TrafficSimulationConfig) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'TrafficSimulationRoot';
     this.generateDefaultRoutes();
   }
@@ -77,6 +79,7 @@ export class TrafficSimulationSystem {
 
   setConfig(config: Partial<TrafficSimulationConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
     if (!this.config.enabled) {
       this.clear();
     }
@@ -203,6 +206,7 @@ export class TrafficSimulationSystem {
       // Despawn & recycle if too far from player
       if (distSq > despawnSq) {
         car.active = false;
+    car.driverId = null;
         const mesh = this.carMeshes.get(car.id);
         if (mesh) mesh.visible = false;
         continue;
@@ -221,8 +225,8 @@ export class TrafficSimulationSystem {
   findNearestHijackable(
     position: THREE.Vector3,
     maxDistance = 12.0
-  ): { carId: string; position: THREE.Vector3; yaw: number; speed: number; distance: number } | null {
-    let best: { carId: string; position: THREE.Vector3; yaw: number; speed: number; distance: number } | null = null;
+  ): { carId: string; driverId: string | null; position: THREE.Vector3; yaw: number; speed: number; distance: number } | null {
+    let best: { carId: string; driverId: string | null; position: THREE.Vector3; yaw: number; speed: number; distance: number } | null = null;
     let minDistance = maxDistance;
 
     for (const car of this.cars) {
@@ -232,6 +236,7 @@ export class TrafficSimulationSystem {
         minDistance = d;
         best = {
           carId: car.id,
+          driverId: car.driverId ?? null,
           position: car.position.clone(),
           yaw: car.yaw,
           speed: car.speed,
@@ -244,6 +249,7 @@ export class TrafficSimulationSystem {
   }
 
   claimCarForPlayer(carId: string): boolean {
+    if (!this.config.enabled) return false;
     const car = this.cars.find((c) => c.id === carId);
     if (!car || !car.active) return false;
 
@@ -264,7 +270,7 @@ export class TrafficSimulationSystem {
       model.dispose();
     }
     this.contentModels.clear();
-    this.rootGroup.clear();
+    disposeOwnedObject(this.rootGroup);
     this.carMeshes.clear();
     this.cars.length = 0;
     this.isInitialized = false;

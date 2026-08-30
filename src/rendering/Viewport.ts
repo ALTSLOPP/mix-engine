@@ -4,6 +4,7 @@ import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { SkyEnvironment } from './SkyEnvironment';
 import { RenderPipeline } from './RenderPipeline';
 import { CascadedShadowMap } from './CascadedShadowMap';
+import { LOW_SPEC_RESOLUTION, resolveRenderResolution, sanitizeResolution, type RenderResolutionSettings } from './RenderResolution';
 
 /** Options for swapping in an image-based-lighting (HDRI) environment. */
 export interface EnvironmentHDRIOptions {
@@ -112,6 +113,7 @@ export class Viewport {
   private readonly container: HTMLElement;
   private readonly resizeObserver: ResizeObserver;
   private resizeDirty = false;
+  private resolutionSettings: RenderResolutionSettings = { ...LOW_SPEC_RESOLUTION };
 
   /** When false, an HDRI environment is active and render() must NOT rebind the
    *  procedural sky over scene.background / scene.environment each frame. */
@@ -142,15 +144,19 @@ export class Viewport {
     const h = Math.max(1, container.clientHeight);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(w, h);
+    const resolution = resolveRenderResolution(w, h, window.devicePixelRatio, this.resolutionSettings, this.renderer.capabilities.maxTextureSize);
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(resolution.outputWidth, resolution.outputHeight, false);
+    this.renderer.domElement.style.width = '100%';
+    this.renderer.domElement.style.height = '100%';
+    this.renderer.domElement.style.display = 'block';
     // ACES filmic — the same tone-mapping curve Unreal ships with. Applied in OutputPass.
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     // The Sky shader outputs very high HDR luminance; at exposure 1.0 the sky and ground
     // blew out to white. 0.6 (paired with scene.backgroundIntensity to tame the sky) gives
     // a natural mid-day exposure where the ground and characters read clearly.
     this.renderer.toneMappingExposure = 0.6;
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = false;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     // RectAreaLights need their BRDF lookup tables uploaded once before first use,
     // or they render black. Safe + idempotent to call here.
@@ -194,6 +200,10 @@ export class Viewport {
       bloomThreshold: 0.6,
       bloomRadius: 0.55,
     });
+    // Keep optional passes available for user toggles, but do not draw them by default.
+    if (this.pipeline.bloomPass) this.pipeline.bloomPass.enabled = false;
+    this.pipeline.setAmbientOcclusion(false);
+    this.applyResolution();
 
     this.resizeObserver = new ResizeObserver(() => {
       this.resizeDirty = true;
@@ -202,23 +212,43 @@ export class Viewport {
   }
 
   setRenderScale(scale: number): void {
-    const ratio = Math.min(window.devicePixelRatio || 1, 2) * Math.max(0.5, Math.min(1.5, scale));
-    if (this.renderer.getPixelRatio() === ratio) return;
-    this.renderer.setPixelRatio(ratio);
-    this.pipeline.setPixelRatio(ratio);
+    this.setResolutionSettings({ renderScale: scale, internalHeight: 0 });
+  }
+
+  setResolutionSettings(settings: Partial<RenderResolutionSettings>): void {
+    const next = sanitizeResolution(settings, this.resolutionSettings);
+    if (Object.keys(next).every(key => next[key as keyof RenderResolutionSettings] === this.resolutionSettings[key as keyof RenderResolutionSettings])) return;
+    this.resolutionSettings = next;
+    this.pipeline.upscaler.configure(next.fsrEnabled, next.fsrSharpness);
     this.resizeDirty = true;
+  }
+
+  getResolutionSettings(): Readonly<RenderResolutionSettings> { return { ...this.resolutionSettings }; }
+
+  getRenderResolution() {
+    const target = this.pipeline.composer.renderTarget1;
+    return {
+      internalWidth: target.width, internalHeight: target.height,
+      outputWidth: this.renderer.domElement.width, outputHeight: this.renderer.domElement.height,
+    };
+  }
+
+  private applyResolution(): void {
+    const w = Math.max(1, this.container.clientWidth), h = Math.max(1, this.container.clientHeight);
+    const r = resolveRenderResolution(w, h, window.devicePixelRatio, this.resolutionSettings, this.renderer.capabilities.maxTextureSize);
+    this.renderer.setSize(r.outputWidth, r.outputHeight, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.pipeline.setSize(r.internalWidth, r.internalHeight);
+    this.pipeline.setOutputSize(r.outputWidth, r.outputHeight);
+    this.pipeline.upscaler.configure(this.resolutionSettings.fsrEnabled, this.resolutionSettings.fsrSharpness);
   }
 
   /** Apply a pending resize, re-anchor shadows, draw through the post pipeline (loop step 11). */
   render(): void {
     if (this.resizeDirty) {
       this.resizeDirty = false;
-      const w = Math.max(1, this.container.clientWidth);
-      const h = Math.max(1, this.container.clientHeight);
-      this.renderer.setSize(w, h);
-      this.camera.aspect = w / h;
-      this.camera.updateProjectionMatrix();
-      this.pipeline.setSize(w, h);
+      this.applyResolution();
     }
 
     // Temporarily bind local context background/environment and disable other viewports' sun lights.

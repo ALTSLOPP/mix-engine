@@ -14,6 +14,7 @@
     "check:perf": "node scripts/check-perf-budgets.mjs",
     "check:bundle": "node scripts/check-bundle-budgets.mjs",
     "check:budgets": "node scripts/check-perf-budgets.mjs && node scripts/check-bundle-budgets.mjs",
+    "docs:gameplay": "node scripts/generate-gameplay-docs.mjs",
     "gen-typings": "node scripts/gen-typings.js",
     "test": "vitest run",
     "test:watch": "vitest",

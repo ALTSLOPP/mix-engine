@@ -19,6 +19,7 @@ import { getEntityIdForRb, focusCameraOnSelected } from './sceneHelpers';
 import { detachViewport, reattachViewport, isViewportSoloed } from './layout';
 import { renderPresetsTab, renderDrawerTab } from './panels';
 import { renderFeatureHubModal, hookFeatureHubEvents } from './featureHubPanel';
+import { installGraphicsSettings } from './graphicsSettings';
 
 // Default building footprint SVG (used by the extruder when no SVG was uploaded).
 const DEFAULT_SVG = `<svg width="10" height="10">
@@ -1111,8 +1112,10 @@ export function setupUIEvents(engine: Engine): void {
   }
 
   // Settings Modal Logic
+  const refreshGraphicsSettings = settingsModal ? installGraphicsSettings(engine, settingsModal) : undefined;
   if (btnSettings && settingsModal) {
     btnSettings.addEventListener('click', () => {
+      refreshGraphicsSettings?.();
       // Fetch Blender path from API and populate input
       fetch('/api/blender-path')
         .then(res => res.json())

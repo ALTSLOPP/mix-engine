@@ -7,6 +7,7 @@ import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import type { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
 import { SpeedLinesPass, ImpactFramePass } from './SpeedLinesPass';
+import { FsrUpscaler } from './FsrUpscaler';
 import {
   OutlinePass,
   VignettePass,
@@ -131,6 +132,10 @@ export class RenderPipeline {
   private readonly _viewProj = new THREE.Matrix4();
   private readonly _matWorldInv = new THREE.Matrix4();
   private readonly _camPos = new THREE.Vector3();
+  readonly upscaler = new FsrUpscaler();
+  private internalWidth = 1;
+  private internalHeight = 1;
+  private dynamicScale = 1;
   // TAA sub-pixel jitter + auto-exposure timing state.
   private _jitterFrame = 0;
   private _prevElapsed = -1;
@@ -156,8 +161,9 @@ export class RenderPipeline {
       depthBuffer: true,
     });
     this.composer = new EffectComposer(renderer, hdrTarget);
-    this.composer.setPixelRatio(pr);
+    this.composer.setPixelRatio(1);
     this.composer.setSize(size.x, size.y);
+    this.composer.renderToScreen = false;
 
     this.addPass(new RenderPass(scene, camera));
 
@@ -318,6 +324,8 @@ export class RenderPipeline {
     this.addPass(this.smaaPass);
     // TAA and SMAA both anti-alias — if TAA starts on, SMAA stays off.
     if (this.taaPass?.enabled) this.smaaPass.enabled = false;
+    this.setSize(size.x, size.y);
+    this.upscaler.setSize(Math.round(size.x * pr), Math.round(size.y * pr));
   }
 
   private ensureGBufferRT(): THREE.WebGLRenderTarget {
@@ -459,10 +467,14 @@ export class RenderPipeline {
       cam.projectionMatrix.elements[8] = e8 + jx;
       cam.projectionMatrix.elements[9] = e9 + jy;
     }
-    this.composer.render();
-    if (taaOn) {
-      cam.projectionMatrix.elements[8] = e8;
-      cam.projectionMatrix.elements[9] = e9;
+    try {
+      this.composer.render();
+      this.upscaler.render(this.renderer, this.composer.readBuffer);
+    } finally {
+      if (taaOn) {
+        cam.projectionMatrix.elements[8] = e8;
+        cam.projectionMatrix.elements[9] = e9;
+      }
     }
   }
 
@@ -475,28 +487,36 @@ export class RenderPipeline {
 
   setAmbientOcclusion(enabled: boolean): void { if (this.aoPass) this.aoPass.enabled = enabled; }
 
-  setPixelRatio(ratio: number): void {
-    this.composer.setPixelRatio(ratio);
-    const size = this.renderer.getSize(new THREE.Vector2());
-    this.setSize(size.x, size.y);
+  /** Legacy adapter: changes internal resolution only, never presentation size. */
+  setPixelRatio(ratio: number): void { this.setDynamicResolutionScale(ratio); }
+
+  setOutputSize(width: number, height: number): void { this.upscaler.setSize(width, height); }
+
+  /** Physical internal pixels. Output size and devicePixelRatio are independent. */
+  setSize(width: number, height: number): void {
+    this.internalWidth = Math.max(1, Math.round(width));
+    this.internalHeight = Math.max(1, Math.round(height));
+    this.resizeInternal();
   }
 
-  /** Take CSS pixel size; the composer scales by pixel ratio and resizes every pass. */
-  setSize(width: number, height: number): void {
+  setDynamicResolutionScale(scale: number): void {
+    if (!Number.isFinite(scale)) return;
+    this.dynamicScale = Math.max(0.5, Math.min(1, scale));
+    this.resizeInternal();
+  }
+
+  private resizeInternal(): void {
+    const width = Math.max(1, Math.round(this.internalWidth * this.dynamicScale));
+    const height = Math.max(1, Math.round(this.internalHeight * this.dynamicScale));
+    // EffectComposer propagates these exact dimensions to EVERY pass, including TAA.
     this.composer.setSize(width, height);
-    this.outlinePass?.setSize(width, height);
-    this.dofPass?.setSize(width, height);
-    this.ssrPass?.setSize(width, height);
-    this.contactShadowsPass?.setSize(width, height);
-    // TAA history is full device-pixel resolution (jitter is sub-pixel).
-    const pr = this.renderer.getPixelRatio();
-    this.taaPass?.setSize(Math.round(width * pr), Math.round(height * pr));
-    // The G-buffer prepass target is lazily resized to match on the next render.
+    this.gBufferRT?.setSize(width, height);
   }
 
   dispose(): void {
     for (const pass of this.passes) (pass as { dispose?: () => void }).dispose?.();
     this.composer.dispose();
+    this.upscaler.dispose();
     this.gBufferRT?.dispose();
     this.depthMaterial.dispose();
     this.normalMaterial.dispose();

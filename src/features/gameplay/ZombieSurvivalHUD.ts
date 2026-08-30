@@ -1,3 +1,4 @@
+import { gameplayWallet } from './GameplayWallet';
 import type { Engine } from '../../engine/Engine';
 import type { GameplayFeatureManager } from './GameplayFeatureManager';
 import { escapeHtml } from '../../ui/domUtils';
@@ -164,9 +165,11 @@ export class ZombieSurvivalHUD {
     const events = this.engine.sceneManager?.events;
     if (!events) return;
 
+    this.unsubs.push(events.on('gameplay_points_changed', () => this.update()));
+    this.unsubs.push(events.on('perks_lost', () => this.update()));
     const u1 = events.on('zombie_wave_started', () => this.update());
     const u2 = events.on('zombie_killed', () => this.update());
-    const u3 = events.on('perk_bought', () => this.update());
+    const u3 = events.on('perk_acquired', () => this.update());
     const u4 = events.on('powerup_collected', () => this.update());
     const u5 = events.on('infection_changed', () => this.update());
     const u6 = events.on('hellhound_round_started', () => this.update());
@@ -193,7 +196,7 @@ export class ZombieSurvivalHUD {
 
     const wave = this.features.zombieHorde.getWaveState();
     const roundNumber = wave.currentWaveIndex + 1;
-    const score = (this.engine.sceneManager?.gameState as any)?.score ?? 0;
+    const score = gameplayWallet(this.engine).getBalance();
     const activePerks = this.features.perkVending.getState().activePerks;
     const isHellhound = this.features.hellhounds.getState().isHellhoundRound;
 

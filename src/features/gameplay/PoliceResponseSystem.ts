@@ -1,3 +1,4 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { EntityId } from '../../ecs/SceneManager';
@@ -25,14 +26,17 @@ export class PoliceResponseSystem {
   private isInitialized = false;
   private arrestProgress = 0;
   private nextUnitId = 1;
+  private readonly exitTimers = new Map<string, number>();
 
   constructor(private readonly engine: Engine, initialConfig: PoliceResponseConfig = DEFAULT_POLICE_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'PoliceResponseRoot';
   }
 
   setConfig(config: Partial<PoliceResponseConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
     if (!this.config.enabled) {
       this.clear();
     }
@@ -144,6 +148,11 @@ export class PoliceResponseSystem {
 
     for (let i = 0; i < this.units.length; i++) {
       const unit = this.units[i];
+      if (unit.mode === 'exiting_vehicle') {
+        const remaining = Math.max(0, (this.exitTimers.get(unit.id) ?? 0.6) - dt);
+        this.exitTimers.set(unit.id, remaining);
+        if (remaining === 0) { unit.mode = 'pursuit_foot'; this.exitTimers.delete(unit.id); }
+      } else this.exitTimers.delete(unit.id);
 
       if (i >= targetActiveCount) {
         // Deactivate excess units
@@ -171,9 +180,7 @@ export class PoliceResponseSystem {
         // Mode Switching: if player is on foot and unit is close (<18m), officer exits vehicle to pursue on foot
         if (!playerInVehicle && unit.mode === 'pursuit_drive' && distToPlayer <= 18.0) {
           unit.mode = 'exiting_vehicle';
-          setTimeout(() => {
-            if (unit.mode === 'exiting_vehicle') unit.mode = 'pursuit_foot';
-          }, 600);
+          this.exitTimers.set(unit.id, 0.6);
         } else if (playerInVehicle && unit.mode === 'pursuit_foot' && distToPlayer > 30.0) {
           unit.mode = 'pursuit_drive';
         }
@@ -244,7 +251,8 @@ export class PoliceResponseSystem {
   }
 
   clear(): void {
-    this.rootGroup.clear();
+    this.exitTimers.clear();
+    disposeOwnedObject(this.rootGroup);
     this.unitMeshes.clear();
     this.units.length = 0;
     this.isInitialized = false;

@@ -1,3 +1,6 @@
+import { validateFeatureRuntime } from './RuntimeSnapshot';
+import { disposeOwnedObject } from './DisposeOwnedObject';
+import { gameplayWallet } from './GameplayWallet';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { BarricadeConfig, BarricadeDef, BarricadeState, BarricadeTier } from './types';
@@ -23,6 +26,7 @@ export class BarricadeBoardingSystem {
 
   constructor(private readonly engine: Engine, initialConfig: BarricadeConfig = DEFAULT_BARRICADE_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'BarricadeBoardingRoot';
     this.initializeBarricades();
   }
@@ -85,13 +89,12 @@ export class BarricadeBoardingSystem {
 
   setConfig(config: Partial<BarricadeConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
     if (config.barricades) {
       this.config.barricades = [...config.barricades];
       this.initializeBarricades();
     }
-    if (!this.config.enabled) {
-      this.clearAll();
-    }
+    this.rootGroup.visible = this.config.enabled;
   }
 
   getConfig(): Readonly<BarricadeConfig> {
@@ -107,6 +110,7 @@ export class BarricadeBoardingSystem {
   }
 
   damageBarricade(id: string, planksTorn = 1): boolean {
+    if (!this.config.enabled || !Number.isInteger(planksTorn) || planksTorn < 1) return false;
     const b = this.barricades.get(id);
     if (!b || b.currentPlanks <= 0) return false;
 
@@ -128,6 +132,7 @@ export class BarricadeBoardingSystem {
   }
 
   repairBarricade(id: string, planksAdded = 1): number {
+    if (!this.config.enabled || !Number.isInteger(planksAdded) || planksAdded < 1) return 0;
     const b = this.barricades.get(id);
     if (!b || b.currentPlanks >= b.maxPlanks) return 0;
 
@@ -138,7 +143,7 @@ export class BarricadeBoardingSystem {
     this.updatePlankVisuals(b);
 
     const pointsAwarded = actualAdded * this.config.pointsPerPlank;
-    (this.engine.sceneManager?.gameState as any)?.addScore?.(pointsAwarded);
+    gameplayWallet(this.engine).add(pointsAwarded);
 
     this.engine.sceneManager?.events?.emit('barricade_repaired', {
       id: b.id,
@@ -151,6 +156,7 @@ export class BarricadeBoardingSystem {
   }
 
   repairAllBarricades(): number {
+    if (!this.config.enabled) return 0;
     let totalAdded = 0;
     for (const b of this.barricades.values()) {
       if (b.currentPlanks < b.maxPlanks) {
@@ -166,6 +172,7 @@ export class BarricadeBoardingSystem {
   }
 
   upgradeTier(id: string, newTier: BarricadeTier): boolean {
+    if (!this.config.enabled) return false;
     const b = this.barricades.get(id);
     if (!b) return false;
 
@@ -193,10 +200,11 @@ export class BarricadeBoardingSystem {
   clearAll(): void {
     this.barricades.clear();
     for (const mesh of this.barricadeMeshes.values()) {
+      disposeOwnedObject(mesh);
       this.rootGroup.remove(mesh);
     }
     this.barricadeMeshes.clear();
-    this.rootGroup.clear();
+    disposeOwnedObject(this.rootGroup);
   }
 
   dispose(): void {
@@ -219,6 +227,7 @@ export class BarricadeBoardingSystem {
   }
 
   fromJSON(data: Record<string, unknown>): void {
+    validateFeatureRuntime('barricade_boarding', data);
     if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
     if (Array.isArray(data.barricades)) {
       for (const item of data.barricades) {

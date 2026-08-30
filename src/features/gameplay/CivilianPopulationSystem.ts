@@ -1,3 +1,4 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { EntityId } from '../../ecs/SceneManager';
@@ -10,10 +11,12 @@ export class CivilianPopulationSystem {
   private readonly rootGroup = new THREE.Group();
   private isInitialized = false;
   private nextCivId = 1;
+  private readonly recoveryTimers = new Map<string, number>();
   private readonly unsubs: (() => void)[] = [];
 
   constructor(private readonly engine: Engine, initialConfig: CivilianPopulationConfig) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'CivilianPopulationRoot';
     this.bindEvents();
   }
@@ -41,6 +44,7 @@ export class CivilianPopulationSystem {
 
   setConfig(config: Partial<CivilianPopulationConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
     if (!this.config.enabled) {
       this.clear();
     }
@@ -114,6 +118,7 @@ export class CivilianPopulationSystem {
     );
     civ.yaw = Math.random() * Math.PI * 2;
     civ.health = this.config.health;
+    this.recoveryTimers.delete(civ.id);
     civ.panicTimer = 0;
     civ.panicOrigin = null;
 
@@ -124,7 +129,7 @@ export class CivilianPopulationSystem {
     const mesh = this.civilianMeshes.get(civ.id);
     if (mesh) {
       mesh.position.copy(civ.position);
-      mesh.rotation.y = civ.yaw;
+      mesh.rotation.set(0, civ.yaw, 0);
       mesh.visible = true;
     }
   }
@@ -157,6 +162,7 @@ export class CivilianPopulationSystem {
   }
 
   applyDamage(civId: string, damage: number, attackerId: EntityId | null = null): boolean {
+    if (!this.config.enabled || !Number.isFinite(damage) || damage < 0) return false;
     const civ = this.civilians.find((c) => c.id === civId);
     if (!civ || civ.mode === 'dead') return false;
 
@@ -164,6 +170,7 @@ export class CivilianPopulationSystem {
 
     if (civ.health <= 0) {
       civ.mode = 'dead';
+      this.recoveryTimers.set(civ.id, 15);
       const mesh = this.civilianMeshes.get(civ.id);
       if (mesh) {
         mesh.rotation.x = Math.PI * 0.5; // Fall over
@@ -182,10 +189,13 @@ export class CivilianPopulationSystem {
   }
 
   ejectDriver(civId: string, ejectionDirection: THREE.Vector3): void {
+    if (!this.config.enabled) return;
     const civ = this.civilians.find((c) => c.id === civId);
     if (!civ || civ.mode === 'dead') return;
 
     civ.mode = 'ejected';
+    civ.vehicleId = null;
+    this.recoveryTimers.set(civ.id, 1);
     civ.position.addScaledVector(ejectionDirection.normalize(), 2.0);
     civ.position.y = 0.5;
     civ.health = Math.max(10, civ.health - 20);
@@ -224,7 +234,15 @@ export class CivilianPopulationSystem {
         continue;
       }
 
-      if (civ.mode === 'dead') continue;
+      if (civ.mode === 'dead' || civ.mode === 'ejected') {
+        const remaining = (this.recoveryTimers.get(civ.id) ?? (civ.mode === 'dead' ? 15 : 1)) - dt;
+        this.recoveryTimers.set(civ.id, remaining);
+        if (remaining > 0) continue;
+        this.recoveryTimers.delete(civ.id);
+        if (civ.mode === 'dead') { this.spawnCivilian(civ, playerPos); continue; }
+        civ.mode = 'fleeing';
+        civ.panicTimer = 6;
+      }
 
       if (civ.mode === 'panicking' || civ.mode === 'fleeing') {
         civ.panicTimer -= dt;
@@ -246,6 +264,18 @@ export class CivilianPopulationSystem {
           civ.yaw += THREE.MathUtils.randFloat(-0.5, 0.5);
         }
       } else if (civ.mode === 'driving') {
+        const cars = this.engine.gameplayFeatures?.traffic.getCars() ?? [];
+        let car = cars.find(c => c.id === civ.vehicleId && c.active);
+        if (!car) car = cars.find(c => c.active && !c.driverId);
+        if (car) {
+          car.driverId = civ.id;
+          civ.vehicleId = car.id;
+          civ.position.copy(car.position);
+          civ.yaw = car.yaw;
+          const mesh = this.civilianMeshes.get(civ.id);
+          if (mesh) mesh.visible = false;
+          continue;
+        }
         // Driving straight along yaw
         const forward = new THREE.Vector3(Math.sin(civ.yaw), 0, Math.cos(civ.yaw));
         civ.position.addScaledVector(forward, this.config.walkerSpeed * 3.5 * dt);
@@ -262,7 +292,9 @@ export class CivilianPopulationSystem {
   }
 
   clear(): void {
-    this.rootGroup.clear();
+    this.recoveryTimers.clear();
+    for (const car of this.engine.gameplayFeatures?.traffic.getCars() ?? []) car.driverId = null;
+    disposeOwnedObject(this.rootGroup);
     this.civilianMeshes.clear();
     this.civilians.length = 0;
     this.isInitialized = false;

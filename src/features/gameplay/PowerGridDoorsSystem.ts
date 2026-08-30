@@ -1,3 +1,5 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
+import { gameplayWallet } from './GameplayWallet';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { BuyableDoorDef, PowerGridConfig, PowerGridState, TrapDef } from './types';
@@ -53,6 +55,7 @@ export class PowerGridDoorsSystem {
 
   constructor(private readonly engine: Engine, initialConfig: PowerGridConfig = DEFAULT_POWER_GRID_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'PowerGridDoorsRoot';
     this.setupVisuals();
   }
@@ -77,6 +80,7 @@ export class PowerGridDoorsSystem {
 
   setConfig(config: Partial<PowerGridConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
   }
 
   getConfig(): Readonly<PowerGridConfig> {
@@ -88,9 +92,11 @@ export class PowerGridDoorsSystem {
   }
 
   isPowerOn(atPosition?: THREE.Vector3): boolean {
+    if (!this.config.enabled) return false;
     if (this.state.isPowerOn) return true;
     if (atPosition) {
       const buildables = (this.engine.gameplayFeatures as any)?.zombieBuildables;
+      if (buildables?.getConfig?.().enabled === false) return false;
       const deployed = buildables?.getState?.()?.deployedBuildables ?? [];
       const hasTurbineNearby = deployed.some(
         (d: any) => d.type === 'turbine_generator' && d.position.distanceTo(atPosition) <= 12.0
@@ -100,12 +106,13 @@ export class PowerGridDoorsSystem {
     return false;
   }
 
-  turnPowerOn(): void {
-    if (this.state.isPowerOn) return;
+  turnPowerOn(): boolean {
+    if (!this.config.enabled || this.state.isPowerOn) return false;
 
     this.state.isPowerOn = true;
     this.engine.audio?.play?.('/assets/audio/power_switch_on.wav', { volume: 1.0 });
     this.engine.sceneManager?.events?.emit('power_turned_on', {});
+    return true;
   }
 
   isDoorOpened(doorId: string): boolean {
@@ -113,6 +120,7 @@ export class PowerGridDoorsSystem {
   }
 
   buyDoor(doorId: string): boolean {
+    if (!this.config.enabled) return false;
     if (this.isDoorOpened(doorId)) return false;
 
     const door = this.config.doors.find((d) => d.id === doorId);
@@ -123,14 +131,14 @@ export class PowerGridDoorsSystem {
       cost = 0;
     }
 
-    const currentScore = (this.engine.sceneManager?.gameState as any)?.score ?? 999999;
+    const currentScore = gameplayWallet(this.engine).getBalance();
     if (currentScore < cost) {
       this.engine.sceneManager?.events?.emit('door_insufficient_points', { cost, currentScore });
       return false;
     }
 
     if (cost > 0) {
-      (this.engine.sceneManager?.gameState as any)?.addScore?.(-cost);
+      if (!gameplayWallet(this.engine).trySpend(cost)) return false;
     }
 
     this.state.openedDoorIds.push(doorId);
@@ -150,6 +158,7 @@ export class PowerGridDoorsSystem {
   }
 
   activateTrap(trapId: string): boolean {
+    if (!this.config.enabled) return false;
     const trap = this.config.traps.find((t) => t.id === trapId);
     if (!trap) return false;
 
@@ -164,12 +173,12 @@ export class PowerGridDoorsSystem {
       return false;
     }
 
-    const currentScore = (this.engine.sceneManager?.gameState as any)?.score ?? 999999;
+    const currentScore = gameplayWallet(this.engine).getBalance();
     if (currentScore < trap.cost) {
       return false;
     }
 
-    (this.engine.sceneManager?.gameState as any)?.addScore?.(-trap.cost);
+    if (!gameplayWallet(this.engine).trySpend(trap.cost)) return false;
 
     this.state.activeTraps[trapId] = {
       timeRemaining: trap.durationSec,
@@ -216,7 +225,7 @@ export class PowerGridDoorsSystem {
     this.unsubs.forEach((u) => u());
     this.unsubs.length = 0;
     this.engine.viewport?.scene?.remove(this.rootGroup);
-    this.rootGroup.clear();
+    disposeOwnedObject(this.rootGroup);
   }
 
   toJSON(): Record<string, unknown> {
@@ -224,11 +233,16 @@ export class PowerGridDoorsSystem {
       enabled: this.config.enabled,
       isPowerOn: this.state.isPowerOn,
       openedDoorIds: [...this.state.openedDoorIds],
+      activeTraps: structuredClone(this.state.activeTraps),
     };
   }
 
   fromJSON(data: Record<string, unknown>): void {
-    if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
+    this.state.activeTraps = structuredClone(data.activeTraps ?? {}) as PowerGridState['activeTraps'];
+    this.state.isPowerOn = data.isPowerOn === true;
+    this.state.openedDoorIds = [];
+    for (const mesh of this.doorMeshes.values()) mesh.visible = true;
+    if (typeof data.enabled === 'boolean') this.setConfig({ enabled: data.enabled });
     if (typeof data.isPowerOn === 'boolean') this.state.isPowerOn = data.isPowerOn;
     if (Array.isArray(data.openedDoorIds)) {
       this.state.openedDoorIds = [...data.openedDoorIds];

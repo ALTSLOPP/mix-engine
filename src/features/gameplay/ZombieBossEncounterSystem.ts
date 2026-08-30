@@ -1,3 +1,5 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
+import { gameplayWallet } from './GameplayWallet';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { EntityId } from '../../ecs/SceneManager';
@@ -26,6 +28,7 @@ export class ZombieBossEncounterSystem {
 
   constructor(private readonly engine: Engine, initialConfig: ZombieBossConfig = DEFAULT_ZOMBIE_BOSS_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'ZombieBossEncounterRoot';
     this.setupVisuals();
     this.bindEvents();
@@ -44,7 +47,7 @@ export class ZombieBossEncounterSystem {
 
     // Startle witch if gunfire occurs nearby
     const u1 = events.on('ranged_weapon_fired', (payload: any) => {
-      if (!payload?.origin) return;
+      if (!this.config.enabled || !payload?.origin) return;
       for (const boss of this.state.activeBosses) {
         if (boss.archetype === 'crying_witch' && !boss.isEnraged) {
           if (boss.position.distanceTo(payload.origin) <= 18.0) {
@@ -61,6 +64,7 @@ export class ZombieBossEncounterSystem {
 
   setConfig(config: Partial<ZombieBossConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
   }
 
   getConfig(): Readonly<ZombieBossConfig> {
@@ -173,6 +177,7 @@ export class ZombieBossEncounterSystem {
   private onBossKilled(boss: ZombieBossState): void {
     const mesh = this.bossMeshes.get(boss.id);
     if (mesh) {
+      disposeOwnedObject(mesh);
       this.rootGroup.remove(mesh);
       this.bossMeshes.delete(boss.id);
     }
@@ -186,21 +191,23 @@ export class ZombieBossEncounterSystem {
     const idx = this.state.activeBosses.indexOf(boss);
     if (idx !== -1) this.state.activeBosses.splice(idx, 1);
 
-    (this.engine.sceneManager?.gameState as any)?.addScore?.(1000);
+    gameplayWallet(this.engine).add(1000);
     this.engine.sceneManager?.events?.emit('boss_defeated', { id: boss.id, archetype: boss.archetype });
   }
 
   update(dt: number): void {
     if (!this.config.enabled) return;
 
+    const playerEntityId = this.engine.player?.getPossessedId?.() ?? null;
+    const playerRb = playerEntityId !== null ? this.engine.sceneManager.getRigidBody(playerEntityId) : null;
     let targetPos = (this.engine.gameplayFeatures as any)?.wonderWeapons?.getActiveDecoyPosition?.();
     const isInPlainSight = (this.engine.gameplayFeatures as any)?.gobbleGums?.isGumActive?.('in_plain_sight');
 
+    const attackingDecoy = !!targetPos;
     if (!targetPos && !isInPlainSight) {
-      targetPos = this.engine.viewport?.camera?.position;
+      targetPos = playerRb?.mesh.position;
     }
 
-    const playerEntityId = this.engine.player?.getPossessedId?.() ?? 1;
 
     for (const boss of this.state.activeBosses) {
       boss.attackCooldown -= dt;
@@ -217,7 +224,7 @@ export class ZombieBossEncounterSystem {
         }
 
         // Flamethrower / Melee attack
-        if (dist <= 4.0 && boss.attackCooldown <= 0) {
+        if (!attackingDecoy && playerRb && playerEntityId !== null && dist <= 4.0 && boss.attackCooldown <= 0) {
           boss.attackCooldown = 2.5;
 
           if (boss.archetype === 'panzer_soldat') {
@@ -256,7 +263,7 @@ export class ZombieBossEncounterSystem {
     this.unsubs.forEach((u) => u());
     this.unsubs.length = 0;
     this.state.activeBosses.length = 0;
-    for (const m of this.bossMeshes.values()) this.rootGroup.remove(m);
+    for (const m of this.bossMeshes.values()) { disposeOwnedObject(m); this.rootGroup.remove(m); }
     this.bossMeshes.clear();
     this.engine.viewport?.scene?.remove(this.rootGroup);
   }
@@ -264,10 +271,20 @@ export class ZombieBossEncounterSystem {
   toJSON(): Record<string, unknown> {
     return {
       enabled: this.config.enabled,
+      activeBosses: this.state.activeBosses, nextBossId: this.nextBossId,
     };
   }
 
   fromJSON(data: Record<string, unknown>): void {
-    if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
+    for (const mesh of this.bossMeshes.values()) { disposeOwnedObject(mesh); this.rootGroup.remove(mesh); }
+    this.bossMeshes.clear();
+    this.state.activeBosses = [];
+    this.nextBossId = Number(data.nextBossId ?? 1);
+    for (const item of Array.isArray(data.activeBosses) ? data.activeBosses : []) {
+      const boss = { ...item, position: new THREE.Vector3(item.position.x, item.position.y, item.position.z) };
+      this.state.activeBosses.push(boss);
+      this.createBossMesh(boss);
+    }
+    if (typeof data.enabled === 'boolean') this.setConfig({ enabled: data.enabled });
   }
 }

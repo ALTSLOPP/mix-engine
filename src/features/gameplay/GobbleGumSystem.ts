@@ -40,8 +40,9 @@ export class GobbleGumSystem {
 
     // Self-medication revive on kill
     const u1 = events.on('zombie_killed', () => {
-      if (this.state.remainingCharges.self_medication > 0) {
-        const playerHealth = this.engine.combat?.getHealth?.(this.engine.player?.getPossessedId?.() ?? 1);
+      const playerId = this.engine.player?.getPossessedId?.() ?? null;
+      if (this.config.enabled && playerId !== null && this.state.remainingCharges.self_medication > 0) {
+        const playerHealth = this.engine.combat?.getHealth?.(playerId);
         if (playerHealth && playerHealth.hp <= 0) {
           playerHealth.hp = playerHealth.maxHp;
           this.state.remainingCharges.self_medication--;
@@ -68,7 +69,7 @@ export class GobbleGumSystem {
   }
 
   isGumActive(type: GobbleGumType): boolean {
-    return (this.state.activeGums[type] ?? 0) > 0;
+    return this.config.enabled && (this.state.activeGums[type] ?? 0) > 0;
   }
 
   chewGum(type: GobbleGumType): boolean {
@@ -127,13 +128,16 @@ export class GobbleGumSystem {
     return {
       enabled: this.config.enabled,
       remainingCharges: { ...this.state.remainingCharges },
+      activeGums: { ...this.state.activeGums },
     };
   }
 
   fromJSON(data: Record<string, unknown>): void {
+    for (const key of Object.keys(this.state.activeGums) as GobbleGumType[]) this.state.activeGums[key] = 0;
+    if (data.activeGums) Object.assign(this.state.activeGums, data.activeGums);
     if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
     if (data.remainingCharges && typeof data.remainingCharges === 'object') {
-      this.state.remainingCharges = { ...this.state.remainingCharges, ...(data.remainingCharges as any) };
+      this.state.remainingCharges = { ...(data.remainingCharges as any) };
     }
   }
 }

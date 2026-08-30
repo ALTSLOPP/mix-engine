@@ -1,9 +1,13 @@
+import { gameplayWallet, type GameplayWallet } from './GameplayWallet';
+import { validateRuntimeSnapshot, validateFeatureRuntime } from './RuntimeSnapshot';
 import type { Engine } from '../../engine/Engine';
 import { createFpsStarterWeapons, createFpsStarterSlots, createFpsStarterGrenades } from '../../content/FpsStarterPack';
 import type {
   GameplayFeatureConfigMap,
   GameplayFeatureId,
 } from './types';
+import { GAMEPLAY_PRESETS, type GameplayPreset } from './GameplayPresets';
+import { validateFeatureConfig } from './FeatureValidation';
 import { GameplayFeatureRegistry } from './GameplayFeatureRegistry';
 import { TargetLockSystem } from './TargetLockSystem';
 import { TimedHitboxSystem } from './TimedHitboxSystem';
@@ -76,6 +80,7 @@ import { HellhoundSpecialRoundSystem } from './HellhoundSpecialRoundSystem';
 import { ZombieSurvivalHUD } from './ZombieSurvivalHUD';
 
 export class GameplayFeatureManager {
+  readonly wallet: GameplayWallet;
   readonly pause: PauseMenuSystem;
   readonly settings: GameSettingsSystem;
   readonly objectives: ObjectiveTrackerSystem;
@@ -150,83 +155,159 @@ export class GameplayFeatureManager {
   readonly gobbleGums: GobbleGumSystem;
   readonly hellhounds: HellhoundSpecialRoundSystem;
 
-  private readonly activeFeatures = new Set<GameplayFeatureId>();
+  private systems!: Record<GameplayFeatureId, any>;
+  private readonly initialConfigs = new Map<GameplayFeatureId, Record<string, unknown>>();
+  private readonly initialRuntime = new Map<GameplayFeatureId, Record<string, unknown>>();
 
   constructor(private readonly engine: Engine) {
     (this.engine as any).gameplayFeatures = this;
+    this.wallet = gameplayWallet(engine);
     // Instantiate all feature subsystems with default configurations
-    this.targetLock = new TargetLockSystem(engine, GameplayFeatureRegistry.getDefaults('target_lock'));
-    this.hitboxes = new TimedHitboxSystem(engine, GameplayFeatureRegistry.getDefaults('timed_hitboxes'));
-    this.combo = new ComboSystem(engine, GameplayFeatureRegistry.getDefaults('combo_system'));
-    this.defense = new DodgeGuardStaminaSystem(engine, GameplayFeatureRegistry.getDefaults('dodge_guard_stamina'));
-    this.hitReactions = new HitReactionSystem(engine, GameplayFeatureRegistry.getDefaults('hit_reactions'));
-    this.abilities = new AbilityElementalSystem(engine, GameplayFeatureRegistry.getDefaults('abilities_magic'));
-    this.encounterAI = new EncounterAISystem(engine, GameplayFeatureRegistry.getDefaults('enemy_boss_ai'));
-    this.stats = new StatsProgressionSystem(engine, GameplayFeatureRegistry.getDefaults('stats_progression'));
-    this.arena = new ArenaWaveSystem(engine, GameplayFeatureRegistry.getDefaults('arena_flow'));
-    this.stealth = new StealthSystem(engine, GameplayFeatureRegistry.getDefaults('stealth_detection'));
-    this.parkour = new ParkourSystem(engine, GameplayFeatureRegistry.getDefaults('parkour_traversal'));
-    this.loot = new LootInventorySystem(engine, GameplayFeatureRegistry.getDefaults('loot_inventory'));
-    this.dialogue = new DialogueSystem(engine, GameplayFeatureRegistry.getDefaults('dialogue_system'));
-    this.ranged = new RangedShooterSystem(engine, GameplayFeatureRegistry.getDefaults('ranged_shooter'));
-    this.vehicle = new VehicleMountSystem(engine, GameplayFeatureRegistry.getDefaults('vehicle_mount'));
-    this.grapple = new GrappleHookSystem(engine, GameplayFeatureRegistry.getDefaults('grapple_swing'));
-    this.time = new TimeMechanicsSystem(engine, GameplayFeatureRegistry.getDefaults('time_mechanics'));
-    this.crafting = new CraftingSystem(engine, GameplayFeatureRegistry.getDefaults('crafting_gathering'));
-    this.companion = new CompanionSystem(engine, GameplayFeatureRegistry.getDefaults('companion_summon'));
-    this.loadout = new WeaponLoadoutSystem(engine, GameplayFeatureRegistry.getDefaults('weapon_wheel_loadout'));
-    this.cover = new CoverPeekingSystem(engine, GameplayFeatureRegistry.getDefaults('cover_peeking'));
-    this.explosives = new ExplosivesSystem(engine, GameplayFeatureRegistry.getDefaults('ballistics_explosives'));
-    this.killstreaks = new KillstreakSystem(engine, GameplayFeatureRegistry.getDefaults('killstreaks_rewards'));
-    this.bonfire = new BonfireCheckpointSystem(engine, GameplayFeatureRegistry.getDefaults('bonfire_checkpoint'));
-    this.flasks = new EstusFlaskSystem(engine, GameplayFeatureRegistry.getDefaults('estus_flask_healing'));
-    this.bloodstain = new BloodstainSystem(engine, GameplayFeatureRegistry.getDefaults('bloodstain_souls'));
-    this.posture = new PostureVisceralSystem(engine, GameplayFeatureRegistry.getDefaults('posture_visceral'));
-    this.twoAxisCombat = new TwoAxisCombatSystem(engine, GameplayFeatureRegistry.getDefaults('two_axis_combat'));
-    this.storm = new ShrinkingStormSystem(engine, GameplayFeatureRegistry.getDefaults('shrinking_storm'));
-    this.flight = new SuperheroFlightMotor(GameplayFeatureRegistry.getDefaults('superhero_flight_system'));
-    this.deformableGround = new DeformableGroundSystem(engine, GameplayFeatureRegistry.getDefaults('deformable_ground'));
-    this.combatDirector = new AnimeCombatDirector(engine, GameplayFeatureRegistry.getDefaults('anime_combat_director'));
+    this.targetLock = new TargetLockSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('target_lock'));
+    this.hitboxes = new TimedHitboxSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('timed_hitboxes'));
+    this.combo = new ComboSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('combo_system'));
+    this.defense = new DodgeGuardStaminaSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('dodge_guard_stamina'));
+    this.hitReactions = new HitReactionSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('hit_reactions'));
+    this.abilities = new AbilityElementalSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('abilities_magic'));
+    this.encounterAI = new EncounterAISystem(engine, GameplayFeatureRegistry.getInactiveDefaults('enemy_boss_ai'));
+    this.stats = new StatsProgressionSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('stats_progression'));
+    this.arena = new ArenaWaveSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('arena_flow'));
+    this.stealth = new StealthSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('stealth_detection'));
+    this.parkour = new ParkourSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('parkour_traversal'));
+    this.loot = new LootInventorySystem(engine, GameplayFeatureRegistry.getInactiveDefaults('loot_inventory'));
+    this.dialogue = new DialogueSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('dialogue_system'));
+    this.ranged = new RangedShooterSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('ranged_shooter'));
+    this.vehicle = new VehicleMountSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('vehicle_mount'));
+    this.grapple = new GrappleHookSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('grapple_swing'));
+    this.time = new TimeMechanicsSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('time_mechanics'));
+    this.crafting = new CraftingSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('crafting_gathering'));
+    this.companion = new CompanionSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('companion_summon'));
+    this.loadout = new WeaponLoadoutSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('weapon_wheel_loadout'));
+    this.cover = new CoverPeekingSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('cover_peeking'));
+    this.explosives = new ExplosivesSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('ballistics_explosives'));
+    this.killstreaks = new KillstreakSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('killstreaks_rewards'));
+    this.bonfire = new BonfireCheckpointSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('bonfire_checkpoint'));
+    this.flasks = new EstusFlaskSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('estus_flask_healing'));
+    this.bloodstain = new BloodstainSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('bloodstain_souls'));
+    this.posture = new PostureVisceralSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('posture_visceral'));
+    this.twoAxisCombat = new TwoAxisCombatSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('two_axis_combat'));
+    this.storm = new ShrinkingStormSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('shrinking_storm'));
+    this.flight = new SuperheroFlightMotor(GameplayFeatureRegistry.getInactiveDefaults('superhero_flight_system'));
+    this.deformableGround = new DeformableGroundSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('deformable_ground'));
+    this.combatDirector = new AnimeCombatDirector(engine, GameplayFeatureRegistry.getInactiveDefaults('anime_combat_director'));
     this.meshSlicing = new MeshSlicingSystem(engine);
-    this.city = new ProceduralCityDirector(engine, GameplayFeatureRegistry.getDefaults('procedural_city_generator'));
+    this.city = new ProceduralCityDirector(engine, GameplayFeatureRegistry.getInactiveDefaults('procedural_city_generator'));
 
     // GTA Systems
-    this.traffic = new TrafficSimulationSystem(engine, GameplayFeatureRegistry.getDefaults('traffic_simulation'));
-    this.civilian = new CivilianPopulationSystem(engine, GameplayFeatureRegistry.getDefaults('civilian_population'));
-    this.wanted = new WantedCrimeSystem(engine, GameplayFeatureRegistry.getDefaults('wanted_crime'));
-    this.police = new PoliceResponseSystem(engine, GameplayFeatureRegistry.getDefaults('police_response'));
-    this.vehicleTheft = new VehicleTheftSystem(engine, GameplayFeatureRegistry.getDefaults('vehicle_theft'));
-    this.escort = new EscortMissionSystem(engine, GameplayFeatureRegistry.getDefaults('escort_missions'));
-    this.radar = new MinimapRadarSystem(engine, GameplayFeatureRegistry.getDefaults('minimap_radar'));
-    this.spaceship = new SpaceshipFlightSystem(engine, GameplayFeatureRegistry.getDefaults('spaceship_flight'));
+    this.traffic = new TrafficSimulationSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('traffic_simulation'));
+    this.civilian = new CivilianPopulationSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('civilian_population'));
+    this.wanted = new WantedCrimeSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('wanted_crime'));
+    this.police = new PoliceResponseSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('police_response'));
+    this.vehicleTheft = new VehicleTheftSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('vehicle_theft'));
+    this.escort = new EscortMissionSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('escort_missions'));
+    this.radar = new MinimapRadarSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('minimap_radar'));
+    this.spaceship = new SpaceshipFlightSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('spaceship_flight'));
 
     // Phone & Social Systems
-    this.phoneShell = new PhoneShellSystem(engine, GameplayFeatureRegistry.getDefaults('phone_shell'));
-    this.messaging = new PhoneMessagingSystem(engine, GameplayFeatureRegistry.getDefaults('phone_messaging'));
-    this.socialEncounter = new SocialEncounterSystem(engine, GameplayFeatureRegistry.getDefaults('social_encounter'));
-    this.locationVisits = new LocationVisitSystem(engine, GameplayFeatureRegistry.getDefaults('location_visits'));
+    this.phoneShell = new PhoneShellSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('phone_shell'));
+    this.messaging = new PhoneMessagingSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('phone_messaging'));
+    this.socialEncounter = new SocialEncounterSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('social_encounter'));
+    this.locationVisits = new LocationVisitSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('location_visits'));
 
     // Zombie Survival Systems
-    this.zombieHorde = new ZombieHordeAISystem(engine, GameplayFeatureRegistry.getDefaults('zombie_horde_ai'));
-    this.barricades = new BarricadeBoardingSystem(engine, GameplayFeatureRegistry.getDefaults('barricade_boarding'));
-    this.mysteryBox = new MysteryBoxSystem(engine, GameplayFeatureRegistry.getDefaults('mystery_box_gambling'));
-    this.perkVending = new PerkVendingSystem(engine, GameplayFeatureRegistry.getDefaults('perk_vending_machines'));
-    this.packAPunch = new PackAPunchSystem(engine, GameplayFeatureRegistry.getDefaults('pack_a_punch_upgrade'));
-    this.infection = new InfectionImmunitySystem(engine, GameplayFeatureRegistry.getDefaults('infection_immunity_meter'));
-    this.powerGrid = new PowerGridDoorsSystem(engine, GameplayFeatureRegistry.getDefaults('power_grid_doors'));
-    this.zombiePowerups = new ZombiePowerupDropsSystem(engine, GameplayFeatureRegistry.getDefaults('zombie_powerups_drops'));
-    this.wonderWeapons = new ZombieWonderWeaponsSystem(engine, GameplayFeatureRegistry.getDefaults('zombie_wonder_weapons'));
-    this.zombieBosses = new ZombieBossEncounterSystem(engine, GameplayFeatureRegistry.getDefaults('zombie_boss_encounters'));
-    this.zombieBuildables = new ZombieBuildablesSystem(engine, GameplayFeatureRegistry.getDefaults('zombie_craftable_traps'));
-    this.easterEggQuest = new ZombieEasterEggQuestSystem(engine, GameplayFeatureRegistry.getDefaults('zombie_easter_egg_quest'));
-    this.gobbleGums = new GobbleGumSystem(engine, GameplayFeatureRegistry.getDefaults('zombie_gobs_elixirs'));
-    this.hellhounds = new HellhoundSpecialRoundSystem(engine, GameplayFeatureRegistry.getDefaults('zombie_hellhounds_round'));
+    this.zombieHorde = new ZombieHordeAISystem(engine, GameplayFeatureRegistry.getInactiveDefaults('zombie_horde_ai'));
+    this.barricades = new BarricadeBoardingSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('barricade_boarding'));
+    this.mysteryBox = new MysteryBoxSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('mystery_box_gambling'));
+    this.perkVending = new PerkVendingSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('perk_vending_machines'));
+    this.packAPunch = new PackAPunchSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('pack_a_punch_upgrade'));
+    this.infection = new InfectionImmunitySystem(engine, GameplayFeatureRegistry.getInactiveDefaults('infection_immunity_meter'));
+    this.powerGrid = new PowerGridDoorsSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('power_grid_doors'));
+    this.zombiePowerups = new ZombiePowerupDropsSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('zombie_powerups_drops'));
+    this.wonderWeapons = new ZombieWonderWeaponsSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('zombie_wonder_weapons'));
+    this.zombieBosses = new ZombieBossEncounterSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('zombie_boss_encounters'));
+    this.zombieBuildables = new ZombieBuildablesSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('zombie_craftable_traps'));
+    this.easterEggQuest = new ZombieEasterEggQuestSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('zombie_easter_egg_quest'));
+    this.gobbleGums = new GobbleGumSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('zombie_gobs_elixirs'));
+    this.hellhounds = new HellhoundSpecialRoundSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('zombie_hellhounds_round'));
 
-    this.pause = new PauseMenuSystem(engine, GameplayFeatureRegistry.getDefaults('pause_menu'));
-    this.settings = new GameSettingsSystem(engine, GameplayFeatureRegistry.getDefaults('game_settings'));
-    this.objectives = new ObjectiveTrackerSystem(engine, GameplayFeatureRegistry.getDefaults('objective_tracker'));
-    this.notifications = new NotificationsSystem(engine, GameplayFeatureRegistry.getDefaults('game_notifications'));
-    this.session = new SessionFlowSystem(engine, GameplayFeatureRegistry.getDefaults('session_flow'));
+    this.pause = new PauseMenuSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('pause_menu'));
+    this.settings = new GameSettingsSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('game_settings'));
+    this.objectives = new ObjectiveTrackerSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('objective_tracker'));
+    this.notifications = new NotificationsSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('game_notifications'));
+    this.session = new SessionFlowSystem(engine, GameplayFeatureRegistry.getInactiveDefaults('session_flow'));
+
+    this.systems = {
+      pause_menu: this.pause,
+      game_settings: this.settings,
+      objective_tracker: this.objectives,
+      game_notifications: this.notifications,
+      session_flow: this.session,
+      target_lock: this.targetLock,
+      timed_hitboxes: this.hitboxes,
+      combo_system: this.combo,
+      dodge_guard_stamina: this.defense,
+      hit_reactions: this.hitReactions,
+      abilities_magic: this.abilities,
+      enemy_boss_ai: this.encounterAI,
+      stats_progression: this.stats,
+      arena_flow: this.arena,
+      stealth_detection: this.stealth,
+      parkour_traversal: this.parkour,
+      loot_inventory: this.loot,
+      dialogue_system: this.dialogue,
+      ranged_shooter: this.ranged,
+      vehicle_mount: this.vehicle,
+      grapple_swing: this.grapple,
+      time_mechanics: this.time,
+      crafting_gathering: this.crafting,
+      companion_summon: this.companion,
+      weapon_wheel_loadout: this.loadout,
+      cover_peeking: this.cover,
+      ballistics_explosives: this.explosives,
+      killstreaks_rewards: this.killstreaks,
+      bonfire_checkpoint: this.bonfire,
+      estus_flask_healing: this.flasks,
+      bloodstain_souls: this.bloodstain,
+      posture_visceral: this.posture,
+      two_axis_combat: this.twoAxisCombat,
+      shrinking_storm: this.storm,
+      superhero_flight_system: this.flight,
+      deformable_ground: this.deformableGround,
+      anime_combat_director: this.combatDirector,
+      procedural_city_generator: this.city,
+      traffic_simulation: this.traffic,
+      civilian_population: this.civilian,
+      wanted_crime: this.wanted,
+      police_response: this.police,
+      vehicle_theft: this.vehicleTheft,
+      escort_missions: this.escort,
+      minimap_radar: this.radar,
+      spaceship_flight: this.spaceship,
+      phone_shell: this.phoneShell,
+      phone_messaging: this.messaging,
+      social_encounter: this.socialEncounter,
+      location_visits: this.locationVisits,
+      zombie_horde_ai: this.zombieHorde,
+      barricade_boarding: this.barricades,
+      mystery_box_gambling: this.mysteryBox,
+      perk_vending_machines: this.perkVending,
+      pack_a_punch_upgrade: this.packAPunch,
+      infection_immunity_meter: this.infection,
+      power_grid_doors: this.powerGrid,
+      zombie_powerups_drops: this.zombiePowerups,
+      zombie_wonder_weapons: this.wonderWeapons,
+      zombie_boss_encounters: this.zombieBosses,
+      zombie_craftable_traps: this.zombieBuildables,
+      zombie_easter_egg_quest: this.easterEggQuest,
+      zombie_gobs_elixirs: this.gobbleGums,
+      zombie_hellhounds_round: this.hellhounds,
+    } satisfies Record<GameplayFeatureId, unknown>;
+
+    for (const { id } of GameplayFeatureRegistry.list()) {
+      const system = this.getSystem(id) as any;
+      this.initialConfigs.set(id, JSON.parse(JSON.stringify(system.getConfig())));
+      if (system.toJSON && system.fromJSON) this.initialRuntime.set(id, JSON.parse(JSON.stringify(system.toJSON())));
+    }
 
     // Enable core gameplay systems by default
     this.enableFeature('target_lock');
@@ -274,23 +355,26 @@ export class GameplayFeatureManager {
     return this.getSystem(id)?.getConfig().enabled === true;
   }
 
-  enableFeature(id: GameplayFeatureId): void {
-    if (!GameplayFeatureRegistry.get(id)) return;
-    this.activeFeatures.add(id);
+  enableFeature(id: GameplayFeatureId): boolean {
+    const descriptor = GameplayFeatureRegistry.get(id);
+    if (!descriptor || !this.getSystem(id)) return false;
+    for (const dependency of descriptor.requires ?? []) this.enableFeature(dependency);
     const sys = this.getSystem(id);
     if (sys && 'setConfig' in sys) {
       sys.setConfig({ enabled: true } as any);
     }
     this.notifyChanged();
+    return this.isFeatureEnabled(id);
   }
 
-  disableFeature(id: GameplayFeatureId): void {
-    this.activeFeatures.delete(id);
+  disableFeature(id: GameplayFeatureId): boolean {
+    if (!GameplayFeatureRegistry.get(id) || !this.getSystem(id)) return false;
     const sys = this.getSystem(id);
     if (sys && 'setConfig' in sys) {
       sys.setConfig({ enabled: false } as any);
     }
     this.notifyChanged();
+    return !this.isFeatureEnabled(id);
   }
 
   toggleFeature(id: GameplayFeatureId): boolean {
@@ -298,8 +382,7 @@ export class GameplayFeatureManager {
       this.disableFeature(id);
       return false;
     } else {
-      this.enableFeature(id);
-      return true;
+      return this.enableFeature(id);
     }
   }
 
@@ -383,90 +466,46 @@ export class GameplayFeatureManager {
   getSystem(id: 'zombie_hellhounds_round'): HellhoundSpecialRoundSystem;
   getSystem(id: GameplayFeatureId): any;
   getSystem(id: GameplayFeatureId): any {
-    switch (id) {
-      case 'pause_menu': return this.pause;
-      case 'game_settings': return this.settings;
-      case 'objective_tracker': return this.objectives;
-      case 'game_notifications': return this.notifications;
-      case 'session_flow': return this.session;
-      case 'target_lock': return this.targetLock;
-      case 'timed_hitboxes': return this.hitboxes;
-      case 'combo_system': return this.combo;
-      case 'dodge_guard_stamina': return this.defense;
-      case 'hit_reactions': return this.hitReactions;
-      case 'abilities_magic': return this.abilities;
-      case 'enemy_boss_ai': return this.encounterAI;
-      case 'stats_progression': return this.stats;
-      case 'arena_flow': return this.arena;
-      case 'stealth_detection': return this.stealth;
-      case 'parkour_traversal': return this.parkour;
-      case 'loot_inventory': return this.loot;
-      case 'dialogue_system': return this.dialogue;
-      case 'ranged_shooter': return this.ranged;
-      case 'vehicle_mount': return this.vehicle;
-      case 'grapple_swing': return this.grapple;
-      case 'time_mechanics': return this.time;
-      case 'crafting_gathering': return this.crafting;
-      case 'companion_summon': return this.companion;
-      case 'weapon_wheel_loadout': return this.loadout;
-      case 'cover_peeking': return this.cover;
-      case 'ballistics_explosives': return this.explosives;
-      case 'killstreaks_rewards': return this.killstreaks;
-      case 'bonfire_checkpoint': return this.bonfire;
-      case 'estus_flask_healing': return this.flasks;
-      case 'bloodstain_souls': return this.bloodstain;
-      case 'posture_visceral': return this.posture;
-      case 'two_axis_combat': return this.twoAxisCombat;
-      case 'shrinking_storm': return this.storm;
-      case 'superhero_flight_system': return this.flight;
-      case 'deformable_ground': return this.deformableGround;
-      case 'anime_combat_director': return this.combatDirector;
-      case 'procedural_city_generator': return this.city;
-      case 'traffic_simulation': return this.traffic;
-      case 'civilian_population': return this.civilian;
-      case 'wanted_crime': return this.wanted;
-      case 'police_response': return this.police;
-      case 'vehicle_theft': return this.vehicleTheft;
-      case 'escort_missions': return this.escort;
-      case 'minimap_radar': return this.radar;
-      case 'spaceship_flight': return this.spaceship;
-      case 'phone_shell': return this.phoneShell;
-      case 'phone_messaging': return this.messaging;
-      case 'social_encounter': return this.socialEncounter;
-      case 'location_visits': return this.locationVisits;
-      case 'zombie_horde_ai': return this.zombieHorde;
-      case 'barricade_boarding': return this.barricades;
-      case 'mystery_box_gambling': return this.mysteryBox;
-      case 'perk_vending_machines': return this.perkVending;
-      case 'pack_a_punch_upgrade': return this.packAPunch;
-      case 'infection_immunity_meter': return this.infection;
-      case 'power_grid_doors': return this.powerGrid;
-      case 'zombie_powerups_drops': return this.zombiePowerups;
-      case 'zombie_wonder_weapons': return this.wonderWeapons;
-      case 'zombie_boss_encounters': return this.zombieBosses;
-      case 'zombie_craftable_traps': return this.zombieBuildables;
-      case 'zombie_easter_egg_quest': return this.easterEggQuest;
-      case 'zombie_gobs_elixirs': return this.gobbleGums;
-      case 'zombie_hellhounds_round': return this.hellhounds;
-    }
+    return this.systems[id];
   }
 
   configureFeature<K extends GameplayFeatureId>(id: K, config: Partial<GameplayFeatureConfigMap[K]>): void {
     const sys = this.getSystem(id);
-    if (!sys || !config || typeof config !== 'object') return;
+    const descriptor = GameplayFeatureRegistry.get(id);
+    if (!sys || !descriptor) throw new Error(`Unknown gameplay feature: ${id}`);
+    validateFeatureConfig({ ...descriptor, defaultConfig: { ...this.initialConfigs.get(id), ...descriptor.defaultConfig as object } }, config);
     if (sys && 'setConfig' in sys) {
       sys.setConfig(JSON.parse(JSON.stringify(config)) as any);
     }
-    if (config && 'enabled' in config) {
-      if (config.enabled) this.activeFeatures.add(id);
-      else this.activeFeatures.delete(id);
-    }
+    if (config.enabled) for (const dependency of descriptor.requires ?? []) this.enableFeature(dependency);
     this.notifyChanged();
   }
 
-  applyPreset(presetName: 'souls' | 'action' | 'shooter' | 'anime' | 'defaults' | 'essentials' | 'gta_open_world' | 'gta_full_open_world' | 'city_builder' | 'fps_starter' | 'zombie_survival' | 'fps_zombies' | 'zombie_nazi_survival' | 'zombie_outbreak_rpg' | 'zombie_arcade_frenzy' | 'zombie_ultimate_experience'): void {
+  /** Explicit administrative reset, distinct from a temporary feature disable. */
+  resetFeature(id: GameplayFeatureId): void {
+    const system = this.getSystem(id);
+    if (!system || !GameplayFeatureRegistry.get(id)) throw new Error(`Unknown gameplay feature: ${id}`);
+    const enabled = this.isFeatureEnabled(id);
+    system.setConfig({ ...this.initialConfigs.get(id), ...GameplayFeatureRegistry.getInactiveDefaults<any>(id) });
+    const initial = this.initialRuntime.get(id);
+    if (initial && system.fromJSON) system.fromJSON(JSON.parse(JSON.stringify(initial)));
+    if (enabled) this.enableFeature(id);
+    this.notifyChanged();
+  }
+
+  applyPreset(presetName: GameplayPreset): GameplayFeatureId[] {
+    if (!GAMEPLAY_PRESETS.includes(presetName)) throw new Error(`Unknown gameplay preset: ${presetName}`);
+    this.disableAllFeatures();
+    for (const { id } of GameplayFeatureRegistry.list()) this.resetFeature(id);
+    this.addPreset(presetName);
+    return GameplayFeatureRegistry.list().filter(d => this.isFeatureEnabled(d.id)).map(d => d.id);
+  }
+
+  /** Explicit composition; unlike applyPreset this keeps existing features. */
+  addPreset(presetName: GameplayPreset): void {
+    if (!GAMEPLAY_PRESETS.includes(presetName)) throw new Error(`Unknown gameplay preset: ${presetName}`);
     if (presetName === 'zombie_ultimate_experience') {
-      this.applyPreset('zombie_nazi_survival');
+      this.addPreset('zombie_nazi_survival');
       this.enableFeature('infection_immunity_meter');
       this.enableFeature('zombie_wonder_weapons');
       this.enableFeature('zombie_boss_encounters');
@@ -477,7 +516,7 @@ export class GameplayFeatureManager {
       return;
     }
     if (presetName === 'zombie_survival' || presetName === 'fps_zombies' || presetName === 'zombie_nazi_survival' || presetName === 'zombie_arcade_frenzy') {
-      this.applyPreset('fps_starter');
+      this.addPreset('fps_starter');
       this.enableFeature('zombie_horde_ai');
       this.enableFeature('barricade_boarding');
       this.enableFeature('mystery_box_gambling');
@@ -490,7 +529,7 @@ export class GameplayFeatureManager {
       return;
     }
     if (presetName === 'zombie_outbreak_rpg') {
-      this.applyPreset('fps_starter');
+      this.addPreset('fps_starter');
       this.enableFeature('zombie_horde_ai');
       this.enableFeature('infection_immunity_meter');
       this.enableFeature('crafting_gathering');
@@ -499,7 +538,7 @@ export class GameplayFeatureManager {
       return;
     }
     if (presetName === 'fps_starter') {
-      this.applyPreset('shooter');
+      this.addPreset('shooter');
       this.configureFeature('ranged_shooter', { enabled: true, weapons: createFpsStarterWeapons(), defaultWeapon: 'fps_ak47', showViewModel: true });
       this.configureFeature('weapon_wheel_loadout', { enabled: true, slots: createFpsStarterSlots() });
       this.configureFeature('ballistics_explosives', { enabled: true, grenades: createFpsStarterGrenades() });
@@ -611,7 +650,7 @@ export class GameplayFeatureManager {
   }
 
   updateRealtime(dt: number): void {
-    this.ranged.updatePresentation();
+    if (this.isFeatureEnabled('ranged_shooter')) this.ranged.updatePresentation();
     this.pause.update();
     this.notifications.update(dt);
     this.generalUI.update();
@@ -697,19 +736,57 @@ export class GameplayFeatureManager {
 
   toJSON(): Record<string, unknown> {
     const data: Record<string, unknown> = {
+      version: 2,
+      runtime: Object.fromEntries(GameplayFeatureRegistry.list().flatMap(({ id }) => {
+        const system = this.getSystem(id) as any;
+        return system.toJSON && system.fromJSON ? [[id, system.toJSON()]] : [];
+      })),
       activeFeatures: GameplayFeatureRegistry.list().filter(d => this.isFeatureEnabled(d.id)).map(d => d.id),
     };
     for (const { id } of GameplayFeatureRegistry.list()) data[id] = this.getSystem(id).getConfig();
     return JSON.parse(JSON.stringify(data));
   }
 
+  validateSnapshot(data: any): void {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Gameplay snapshot must be an object');
+    if (data.version !== undefined && data.version !== 2) throw new Error('Unsupported gameplay snapshot version');
+    validateRuntimeSnapshot(data);
+    for (const { id } of GameplayFeatureRegistry.list()) {
+      const registered = GameplayFeatureRegistry.get(id)!;
+      const descriptor = { ...registered, defaultConfig: { ...this.initialConfigs.get(id), ...registered.defaultConfig as object } };
+      if (data[id]) validateFeatureConfig(descriptor, data[id]);
+      const runtime = data.runtime?.[id];
+      if (runtime) {
+        validateFeatureRuntime(id, runtime);
+        validateRuntimeSnapshot(runtime, this.initialRuntime.get(id), id);
+        // Older subsystem serializers include configuration fields in their runtime payload.
+        const configFields = Object.fromEntries(Object.entries(runtime).filter(([key]) => Object.hasOwn(descriptor.defaultConfig as object, key)));
+        // Barricade runtime records are not authored barricade definitions.
+        if (id === 'barricade_boarding') delete configFields.barricades;
+        validateFeatureConfig(descriptor, configFields);
+      }
+    }
+  }
+
   fromJSON(data: any): void {
     if (!data || typeof data !== 'object') return;
+    this.validateSnapshot(data);
     const active = Array.isArray(data.activeFeatures) ? new Set(data.activeFeatures) : null;
     for (const { id } of GameplayFeatureRegistry.list()) {
       const config = data[id];
       if (config && typeof config === 'object' && !Array.isArray(config)) this.configureFeature(id, config);
-      if (active) this.configureFeature(id, { enabled: active.has(id) });
+      const system = this.getSystem(id) as any;
+      const runtime = data.runtime?.[id];
+      if (runtime && system.fromJSON) {
+        const baseline = this.initialRuntime.get(id);
+        if (baseline) system.fromJSON(JSON.parse(JSON.stringify(baseline)));
+        system.fromJSON(JSON.parse(JSON.stringify(runtime)));
+      }
+      if (active && !active.has(id)) system.setConfig({ enabled: false });
+    }
+    if (active) for (const { id } of GameplayFeatureRegistry.list()) {
+      const system = this.getSystem(id);
+      if (system.getConfig().enabled !== active.has(id)) system.setConfig({ enabled: active.has(id) });
     }
     this.settings.initialize();
     this.notifyChanged();

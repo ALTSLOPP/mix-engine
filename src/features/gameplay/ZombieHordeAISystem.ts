@@ -1,3 +1,6 @@
+import { validateFeatureRuntime } from './RuntimeSnapshot';
+import { disposeOwnedObject } from './DisposeOwnedObject';
+import { gameplayWallet } from './GameplayWallet';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { EntityId } from '../../ecs/SceneManager';
@@ -221,6 +224,7 @@ export class ZombieHordeAISystem {
 
   constructor(private readonly engine: Engine, initialConfig: ZombieHordeConfig = DEFAULT_ZOMBIE_HORDE_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'ZombieHordeRoot';
     this.bindEvents();
   }
@@ -232,7 +236,7 @@ export class ZombieHordeAISystem {
     // Listen for gunfire noise
     const u1 = events.on('ranged_weapon_fired', (e: any) => {
       if (e?.origin) {
-        this.notifyNoise(new THREE.Vector3().copy(e.origin), 35.0 * (e.noiseScale ?? 1.0));
+        this.notifyNoise(new THREE.Vector3().copy(e.origin), (e.noiseRadius ?? 35.0));
       }
     });
 
@@ -272,7 +276,9 @@ export class ZombieHordeAISystem {
   }
 
   setConfig(config: Partial<ZombieHordeConfig>): void {
+    if (config.surroundSlotsCount !== undefined && (!Number.isInteger(config.surroundSlotsCount) || config.surroundSlotsCount < 1)) throw new Error('surroundSlotsCount must be an integer >= 1');
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
     if (config.archetypes) {
       this.config.archetypes = { ...this.config.archetypes, ...config.archetypes };
     }
@@ -488,11 +494,11 @@ export class ZombieHordeAISystem {
     }
   }
 
-  private findBestVictim(zombie: ZombieState): { entityId: EntityId; position: THREE.Vector3 } | null {
+  private findBestVictim(zombie: ZombieState): { entityId: EntityId | null; position: THREE.Vector3 } | null {
     // 0. Check active monkey bomb / decoy position
     const decoyPos = (this.engine.gameplayFeatures as any)?.wonderWeapons?.getActiveDecoyPosition?.();
     if (decoyPos) {
-      return { entityId: 99999 as EntityId, position: decoyPos };
+      return { entityId: null, position: decoyPos };
     }
 
     // 0.1 Check In Plain Sight GobbleGum
@@ -506,12 +512,6 @@ export class ZombieHordeAISystem {
 
     if (playerRb) {
       return { entityId: playerEntityId!, position: playerRb.mesh.position.clone() };
-    }
-
-    // Fallback: camera position
-    const camPos = this.engine.viewport?.camera?.position;
-    if (camPos) {
-      return { entityId: (playerEntityId ?? 1) as EntityId, position: camPos.clone() };
     }
 
     return null;
@@ -584,7 +584,7 @@ export class ZombieHordeAISystem {
       if ((this.engine.gameplayFeatures as any)?.zombiePowerups?.isEffectActive?.('double_points')) {
         pts *= 2;
       }
-      (this.engine.sceneManager?.gameState as any)?.addScore?.(pts);
+      gameplayWallet(this.engine).add(pts);
 
       this.engine.sceneManager?.events?.emit('zombie_killed', {
         id: zombie.id,
@@ -597,7 +597,8 @@ export class ZombieHordeAISystem {
       // Remove visual mesh after death animation duration
       const mesh = this.zombieMeshes.get(zombie.id);
       if (mesh) {
-        this.rootGroup.remove(mesh);
+        disposeOwnedObject(mesh);
+      this.rootGroup.remove(mesh);
         this.zombieMeshes.delete(zombie.id);
       }
       this.zombies.delete(zombie.id);
@@ -711,6 +712,12 @@ export class ZombieHordeAISystem {
     const archDef = this.config.archetypes[zombie.archetype] ?? DEFAULT_ZOMBIE_ARCHETYPES.shambler;
     zombie.attackCooldown = Math.max(0, zombie.attackCooldown - dt);
 
+    if (['attacking', 'lunging', 'spitting'].includes(zombie.state)) {
+      zombie.stateTimer = Math.max(0, zombie.stateTimer - dt);
+      if (zombie.stateTimer === 0) zombie.state = 'chasing';
+      return;
+    }
+
     if (zombie.state === 'staggered') {
       zombie.staggerTimer -= dt;
       if (zombie.staggerTimer <= 0) {
@@ -801,7 +808,7 @@ export class ZombieHordeAISystem {
 
       // Check attack execution
       const primaryAttack = archDef.attacks[0];
-      if (primaryAttack && distToVictim <= primaryAttack.range && zombie.attackCooldown <= 0) {
+      if (victim.entityId !== null && primaryAttack && distToVictim <= primaryAttack.range && zombie.attackCooldown <= 0) {
         if (zombie.archetype === 'spitter') {
           this.executeSpitAttack(zombie, victimPos);
         } else if (zombie.archetype === 'runner') {
@@ -834,9 +841,10 @@ export class ZombieHordeAISystem {
 
   private executeMeleeAttack(
     zombie: ZombieState,
-    victim: { entityId: EntityId; position: THREE.Vector3 },
+    victim: { entityId: EntityId | null; position: THREE.Vector3 },
     attack: ZombieAttackDef
   ): void {
+    if (victim.entityId === null) return;
     zombie.state = 'attacking';
     zombie.attackCooldown = attack.cooldown;
 
@@ -862,15 +870,14 @@ export class ZombieHordeAISystem {
     });
 
     // Reset back to chasing after brief recovery
-    setTimeout(() => {
-      if (zombie.state === 'attacking') zombie.state = 'chasing';
-    }, attack.windup * 1000);
+    zombie.stateTimer = attack.windup;
   }
 
   private executeLungeAttack(
     zombie: ZombieState,
-    victim: { entityId: EntityId; position: THREE.Vector3 }
+    victim: { entityId: EntityId | null; position: THREE.Vector3 }
   ): void {
+    if (victim.entityId === null) return;
     zombie.state = 'lunging';
     zombie.attackCooldown = 1.4;
 
@@ -894,9 +901,7 @@ export class ZombieHordeAISystem {
       damage: 24,
     });
 
-    setTimeout(() => {
-      if (zombie.state === 'lunging') zombie.state = 'chasing';
-    }, 350);
+    zombie.stateTimer = 0.35;
   }
 
   private executeSpitAttack(zombie: ZombieState, victimPos: THREE.Vector3): void {
@@ -924,14 +929,13 @@ export class ZombieHordeAISystem {
       position: spawnPos.clone(),
     });
 
-    setTimeout(() => {
-      if (zombie.state === 'spitting') zombie.state = 'chasing';
-    }, 400);
+    zombie.stateTimer = 0.4;
   }
 
   private updateProjectiles(dt: number): void {
     const playerPos = this.getPlayerPosition();
-    const playerEntityId = (this.engine.player?.getPossessedId?.() ?? 1) as EntityId;
+    const playerEntityId = this.engine.player?.getPossessedId?.() ?? null;
+    const playerExists = playerEntityId !== null && !!this.engine.sceneManager.getRigidBody(playerEntityId);
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const proj = this.projectiles[i];
@@ -939,7 +943,7 @@ export class ZombieHordeAISystem {
       proj.position.addScaledVector(proj.velocity, dt);
 
       // Check hit against player
-      if (playerPos && proj.position.distanceTo(playerPos) <= proj.radius) {
+      if (playerExists && playerPos && proj.position.distanceTo(playerPos) <= proj.radius) {
         applyGameplayHit(this.engine, {
           attackerId: null,
           targetId: playerEntityId as number,
@@ -971,11 +975,12 @@ export class ZombieHordeAISystem {
   clearAll(): void {
     this.zombies.clear();
     for (const mesh of this.zombieMeshes.values()) {
+      disposeOwnedObject(mesh);
       this.rootGroup.remove(mesh);
     }
     this.zombieMeshes.clear();
     this.projectiles.length = 0;
-    this.rootGroup.clear();
+    disposeOwnedObject(this.rootGroup);
 
     this.waveState.active = false;
     this.waveState.zombiesSpawned = 0;
@@ -998,15 +1003,42 @@ export class ZombieHordeAISystem {
       enabled: this.config.enabled,
       mode: this.config.mode,
       maxActiveZombies: this.config.maxActiveZombies,
+      waveState: { ...this.waveState },
+      zombies: Array.from(this.zombies.values()), projectiles: this.projectiles,
+      nextZombieId: this.nextZombieId, nextProjId: this.nextProjId, spawnCooldown: this.spawnCooldown,
       currentWaveIndex: this.waveState.currentWaveIndex,
       totalKills: this.waveState.totalKills,
     };
   }
 
   fromJSON(data: Record<string, unknown>): void {
+    validateFeatureRuntime('zombie_horde_ai', data);
+    this.clearAll();
     if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
-    if (typeof data.mode === 'string') this.config.mode = data.mode as any;
-    if (typeof data.maxActiveZombies === 'number') this.config.maxActiveZombies = data.maxActiveZombies;
+    if (data.waveState && typeof data.waveState === 'object') Object.assign(this.waveState, data.waveState);
+    this.nextZombieId = Number(data.nextZombieId ?? 1);
+    this.nextProjId = Number(data.nextProjId ?? 1);
+    this.spawnCooldown = Number(data.spawnCooldown ?? 0);
+    const vector = (v: any) => new THREE.Vector3(v.x, v.y, v.z);
+    for (const saved of Array.isArray(data.zombies) ? data.zombies : []) {
+      const zombie: ZombieState = { ...saved, position: vector(saved.position), velocity: vector(saved.velocity),
+        targetPosition: saved.targetPosition ? vector(saved.targetPosition) : null,
+        lastNoisePosition: saved.lastNoisePosition ? vector(saved.lastNoisePosition) : null };
+      this.zombies.set(zombie.id, zombie);
+      this.createZombieMesh(zombie);
+      this.syncMesh(zombie);
+    }
+    for (const saved of Array.isArray(data.projectiles) ? data.projectiles : []) {
+      this.projectiles.push({ ...saved, position: vector(saved.position), velocity: vector(saved.velocity) });
+    }
+    if (typeof data.mode === 'string') {
+      if (!['waves', 'open_world_wandering', 'dormant_ambush'].includes(data.mode)) throw new Error('Invalid zombie mode');
+      this.config.mode = data.mode as ZombieHordeConfig['mode'];
+    }
+    if (typeof data.maxActiveZombies === 'number') {
+      if (!Number.isInteger(data.maxActiveZombies) || data.maxActiveZombies < 1 || data.maxActiveZombies > 200) throw new Error('Invalid maxActiveZombies');
+      this.config.maxActiveZombies = data.maxActiveZombies;
+    }
     if (typeof data.currentWaveIndex === 'number') this.waveState.currentWaveIndex = data.currentWaveIndex;
     if (typeof data.totalKills === 'number') this.waveState.totalKills = data.totalKills;
   }

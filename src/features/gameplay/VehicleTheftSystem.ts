@@ -37,44 +37,19 @@ export class VehicleTheftSystem {
     const trafficSystem = this.engine.gameplayFeatures?.traffic;
     const nearestTraffic = trafficSystem?.findNearestHijackable?.(playerPos, this.config.theftRange);
 
-    // 2. Check for nearby civilian driver
+    if (!nearestTraffic) return { success: false };
     const civilianSystem = this.engine.gameplayFeatures?.civilian;
-    let ejectedDriverId: string | null = null;
-    if (civilianSystem) {
-      const civs = civilianSystem.getCivilians();
-      for (const civ of civs) {
-        if (civ.mode === 'driving' && civ.position.distanceTo(playerPos) <= this.config.theftRange) {
-          const ejectDir = playerRb.mesh.quaternion ? new THREE.Vector3(1, 0, 0).applyQuaternion(playerRb.mesh.quaternion) : new THREE.Vector3(1, 0, 0);
-          civilianSystem.ejectDriver(civ.id, ejectDir);
-          ejectedDriverId = civ.id;
-          break;
-        }
-      }
-    }
-
-    if (nearestTraffic) {
-      trafficSystem?.claimCarForPlayer?.(nearestTraffic.carId);
-
-      // Report crime
-      const wantedSystem = this.engine.gameplayFeatures?.wanted;
-      if (wantedSystem) {
-        wantedSystem.reportCrime('vehicle_theft', playerPos);
-      }
-
-      this.engine.sceneManager?.events?.emit('vehicle_hijacked', {
-        carId: nearestTraffic.carId,
-        position: nearestTraffic.position,
-        wasOccupied: ejectedDriverId !== null,
-        driverId: ejectedDriverId,
-      });
-
-      return {
-        success: true,
-        vehicleId: nearestTraffic.carId,
-        wasOccupied: ejectedDriverId !== null,
-      };
-    }
-
-    return { success: false };
+    const driver = civilianSystem?.getCivilians().find(c => c.id === nearestTraffic.driverId && c.mode === 'driving');
+    // Claim is the transaction boundary: rejected claims cannot eject anyone or create crime.
+    if (!trafficSystem?.claimCarForPlayer(nearestTraffic.carId)) return { success: false };
+    const driverId = driver?.id ?? null;
+    if (driver) civilianSystem!.ejectDriver(driver.id, new THREE.Vector3(1, 0, 0).applyQuaternion(playerRb.mesh.quaternion));
+    const event = {
+      carId: nearestTraffic.carId, position: nearestTraffic.position,
+      wasOccupied: driverId !== null, driverId,
+    };
+    this.engine.sceneManager.events.emit('vehicle_theft_committed', event);
+    this.engine.sceneManager.events.emit('vehicle_hijacked', event);
+    return { success: true, vehicleId: nearestTraffic.carId, wasOccupied: driverId !== null };
   }
 }

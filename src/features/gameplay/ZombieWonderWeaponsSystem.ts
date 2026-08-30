@@ -1,3 +1,4 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { EntityId } from '../../ecs/SceneManager';
@@ -30,6 +31,7 @@ export class ZombieWonderWeaponsSystem {
 
   constructor(private readonly engine: Engine, initialConfig: WonderWeaponsConfig = DEFAULT_WONDER_WEAPONS_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'ZombieWonderWeaponsRoot';
     this.setupVisuals();
   }
@@ -43,6 +45,7 @@ export class ZombieWonderWeaponsSystem {
 
   setConfig(config: Partial<WonderWeaponsConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
   }
 
   getConfig(): Readonly<WonderWeaponsConfig> {
@@ -102,6 +105,7 @@ export class ZombieWonderWeaponsSystem {
   }
 
   throwMonkeyBomb(origin: THREE.Vector3, velocity: THREE.Vector3 = new THREE.Vector3(0, 4, -8)): ActiveMonkeyBomb {
+    if (!this.config.enabled) throw new Error('Wonder weapons are disabled');
     const id = `monkey_${this.nextBombId++}`;
     const bombPos = origin.clone().add(new THREE.Vector3(0, 0.5, 0));
 
@@ -146,6 +150,7 @@ export class ZombieWonderWeaponsSystem {
   }
 
   throwGerschDevice(origin: THREE.Vector3, forward: THREE.Vector3 = new THREE.Vector3(0, 2, -6)): ActiveGerschDevice {
+    if (!this.config.enabled) throw new Error('Wonder weapons are disabled');
     const id = `gersch_${this.nextGerschId++}`;
     const vortexPos = origin.clone().add(forward);
 
@@ -157,13 +162,7 @@ export class ZombieWonderWeaponsSystem {
 
     this.state.activeGerschVortices.push(gersch);
 
-    // Visual black hole sphere
-    const sphereGeo = new THREE.SphereGeometry(1.2, 16, 16);
-    const sphereMat = new THREE.MeshBasicMaterial({ color: 0x220033, wireframe: true });
-    const mesh = new THREE.Mesh(sphereGeo, sphereMat);
-    mesh.position.copy(vortexPos);
-    this.rootGroup.add(mesh);
-    this.vfxMeshes.set(id, mesh);
+    this.createGerschMesh(gersch);
 
     this.engine.burstVfx?.('magic', vortexPos.clone(), 20);
     this.engine.sceneManager?.events?.emit('gersch_device_opened', { id, position: vortexPos.clone() });
@@ -171,7 +170,15 @@ export class ZombieWonderWeaponsSystem {
     return gersch;
   }
 
+  private createGerschMesh(gersch: ActiveGerschDevice): void {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 16), new THREE.MeshBasicMaterial({ color: 0x220033, wireframe: true }));
+    mesh.position.copy(gersch.position);
+    this.rootGroup.add(mesh);
+    this.vfxMeshes.set(gersch.id, mesh);
+  }
+
   getActiveDecoyPosition(): THREE.Vector3 | null {
+    if (!this.config.enabled) return null;
     if (this.state.activeMonkeyBombs.length > 0) {
       return this.state.activeMonkeyBombs[0].position.clone();
     }
@@ -211,6 +218,7 @@ export class ZombieWonderWeaponsSystem {
         this.engine.sceneManager?.events?.emit('monkey_bomb_detonated', { id: bomb.id, position: bomb.position.clone() });
 
         if (mesh) {
+          disposeOwnedObject(mesh);
           this.rootGroup.remove(mesh);
           this.bombMeshes.delete(bomb.id);
         }
@@ -245,6 +253,7 @@ export class ZombieWonderWeaponsSystem {
 
       if (gersch.timeRemaining <= 0) {
         if (mesh) {
+          disposeOwnedObject(mesh);
           this.rootGroup.remove(mesh);
           this.vfxMeshes.delete(gersch.id);
         }
@@ -259,8 +268,8 @@ export class ZombieWonderWeaponsSystem {
     this.unsubs.length = 0;
     this.state.activeMonkeyBombs.length = 0;
     this.state.activeGerschVortices.length = 0;
-    for (const m of this.bombMeshes.values()) this.rootGroup.remove(m);
-    for (const m of this.vfxMeshes.values()) this.rootGroup.remove(m);
+    for (const m of this.bombMeshes.values()) { disposeOwnedObject(m); this.rootGroup.remove(m); }
+    for (const m of this.vfxMeshes.values()) { disposeOwnedObject(m); this.rootGroup.remove(m); }
     this.bombMeshes.clear();
     this.vfxMeshes.clear();
     this.engine.viewport?.scene?.remove(this.rootGroup);
@@ -269,10 +278,24 @@ export class ZombieWonderWeaponsSystem {
   toJSON(): Record<string, unknown> {
     return {
       enabled: this.config.enabled,
+      activeMonkeyBombs: this.state.activeMonkeyBombs, activeGerschVortices: this.state.activeGerschVortices,
+      nextBombId: this.nextBombId, nextGerschId: this.nextGerschId,
     };
   }
 
   fromJSON(data: Record<string, unknown>): void {
-    if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
+    disposeOwnedObject(this.rootGroup);
+    this.bombMeshes.clear(); this.vfxMeshes.clear();
+    this.state.activeMonkeyBombs = []; this.state.activeGerschVortices = [];
+    this.nextBombId = Number(data.nextBombId ?? 1); this.nextGerschId = Number(data.nextGerschId ?? 1);
+    for (const item of Array.isArray(data.activeMonkeyBombs) ? data.activeMonkeyBombs : []) {
+      const bomb = { ...item, position: new THREE.Vector3(item.position.x, item.position.y, item.position.z) };
+      this.state.activeMonkeyBombs.push(bomb); this.createMonkeyMesh(bomb);
+    }
+    for (const item of Array.isArray(data.activeGerschVortices) ? data.activeGerschVortices : []) {
+      const gersch = { ...item, position: new THREE.Vector3(item.position.x, item.position.y, item.position.z) };
+      this.state.activeGerschVortices.push(gersch); this.createGerschMesh(gersch);
+    }
+    if (typeof data.enabled === 'boolean') this.setConfig({ enabled: data.enabled });
   }
 }

@@ -1,3 +1,4 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import { applyGameplayHit } from './GameplayHit';
@@ -34,6 +35,7 @@ export class ZombieBuildablesSystem {
 
   constructor(private readonly engine: Engine, initialConfig: ZombieBuildablesConfig = DEFAULT_ZOMBIE_BUILDABLES_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'ZombieBuildablesRoot';
     this.setupVisuals();
   }
@@ -47,6 +49,7 @@ export class ZombieBuildablesSystem {
 
   setConfig(config: Partial<ZombieBuildablesConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
   }
 
   getConfig(): Readonly<ZombieBuildablesConfig> {
@@ -58,6 +61,7 @@ export class ZombieBuildablesSystem {
   }
 
   collectPart(partId: string): boolean {
+    if (!this.config.enabled) return false;
     const part = this.config.parts.find((p) => p.id === partId);
     if (!part || part.collected) return false;
 
@@ -70,6 +74,7 @@ export class ZombieBuildablesSystem {
   }
 
   canAssemble(type: BuildableItemType): boolean {
+    if (!this.config.enabled) return false;
     const neededParts = this.config.parts.filter((p) => p.requiredFor === type);
     return neededParts.length > 0 && neededParts.every((p) => p.collected);
   }
@@ -90,7 +95,7 @@ export class ZombieBuildablesSystem {
   }
 
   hasShield(): boolean {
-    return this.state.assembledItems.includes('riot_shield') && this.state.activeShieldDurability > 0;
+    return this.config.enabled && this.state.assembledItems.includes('riot_shield') && this.state.activeShieldDurability > 0;
   }
 
   blockDamageWithShield(incomingDamage: number): number {
@@ -112,6 +117,7 @@ export class ZombieBuildablesSystem {
   }
 
   deployItem(type: BuildableItemType, position: THREE.Vector3): DeployedBuildable | null {
+    if (!this.config.enabled) return null;
     if (!this.state.assembledItems.includes(type) && type !== 'turbine_generator') return null;
 
     const id = `deployed_${type}_${this.nextDeployedId++}`;
@@ -156,6 +162,7 @@ export class ZombieBuildablesSystem {
         if (d.timeRemaining <= 0) {
           const mesh = this.buildableMeshes.get(d.id);
           if (mesh) {
+            disposeOwnedObject(mesh);
             this.rootGroup.remove(mesh);
             this.buildableMeshes.delete(d.id);
           }
@@ -170,7 +177,7 @@ export class ZombieBuildablesSystem {
     this.unsubs.forEach((u) => u());
     this.unsubs.length = 0;
     this.state.deployedBuildables.length = 0;
-    for (const m of this.buildableMeshes.values()) this.rootGroup.remove(m);
+    for (const m of this.buildableMeshes.values()) { disposeOwnedObject(m); this.rootGroup.remove(m); }
     this.buildableMeshes.clear();
     this.engine.viewport?.scene?.remove(this.rootGroup);
   }
@@ -180,11 +187,23 @@ export class ZombieBuildablesSystem {
       enabled: this.config.enabled,
       assembledItems: [...this.state.assembledItems],
       activeShieldDurability: this.state.activeShieldDurability,
+      deployedBuildables: this.state.deployedBuildables, nextDeployedId: this.nextDeployedId,
     };
   }
 
   fromJSON(data: Record<string, unknown>): void {
-    if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
+    for (const mesh of this.buildableMeshes.values()) { disposeOwnedObject(mesh); this.rootGroup.remove(mesh); }
+    this.buildableMeshes.clear();
+    this.state.assembledItems = [];
+    this.state.activeShieldDurability = 0;
+    this.state.deployedBuildables = [];
+    this.nextDeployedId = Number(data.nextDeployedId ?? 1);
+    for (const item of Array.isArray(data.deployedBuildables) ? data.deployedBuildables : []) {
+      const deployed = { ...item, position: new THREE.Vector3(item.position.x, item.position.y, item.position.z) };
+      this.state.deployedBuildables.push(deployed);
+      this.createDeployedMesh(deployed);
+    }
+    if (typeof data.enabled === 'boolean') this.setConfig({ enabled: data.enabled });
     if (Array.isArray(data.assembledItems)) this.state.assembledItems = [...data.assembledItems];
     if (typeof data.activeShieldDurability === 'number') this.state.activeShieldDurability = data.activeShieldDurability;
   }

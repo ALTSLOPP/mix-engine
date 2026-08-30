@@ -24,6 +24,13 @@ npm run typecheck
 | **B** | Drop a box in front of the camera |
 | **F5** | Toggle play / editor mode · **Esc** editor |
 
+### Low-spec graphics
+
+FSR 1 is enabled by default: 540p internal → 900p output, with expensive effects
+off. Change FSR, resolution caps and sharpening in **Engine Settings** or
+**Escape → Display**. Preferences are saved locally.
+See [graphics and upscaling](docs/graphics-upscaling.md) for details and limitations.
+
 ### Controllers
 
 Controllers are hot-pluggable and use Unity-style semantic paths such as `<Gamepad>/buttonSouth` and `<Gamepad>/leftStick`. Connected devices appear in the editor header and Engine Settings. IDE agents can discover devices and controls, then export or replace the complete JSON action asset through HELM or `mix.input`. See [Controller input](docs/controller-input.md).

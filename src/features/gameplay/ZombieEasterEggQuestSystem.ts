@@ -1,3 +1,5 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
+import { gameplayWallet } from './GameplayWallet';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { EasterEggQuestConfig, EasterEggQuestState, QuestStep, SoulBoxDef } from './types';
@@ -38,6 +40,7 @@ export class ZombieEasterEggQuestSystem {
 
   constructor(private readonly engine: Engine, initialConfig: EasterEggQuestConfig = DEFAULT_EASTER_EGG_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'ZombieEasterEggQuestRoot';
     this.state.soulBoxes = JSON.parse(JSON.stringify(this.config.soulBoxes));
     this.setupVisuals();
@@ -82,6 +85,7 @@ export class ZombieEasterEggQuestSystem {
 
   setConfig(config: Partial<EasterEggQuestConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
     if (config.soulBoxes) {
       this.state.soulBoxes = JSON.parse(JSON.stringify(config.soulBoxes));
     }
@@ -168,7 +172,7 @@ export class ZombieEasterEggQuestSystem {
       }
     }
 
-    (this.engine.sceneManager?.gameState as any)?.addScore?.(10000);
+    gameplayWallet(this.engine).add(10000);
     this.engine.burstVfx?.('confetti', new THREE.Vector3(0, 5, 0), 40);
     this.engine.sceneManager?.events?.emit('easter_egg_quest_completed', {});
   }
@@ -190,7 +194,7 @@ export class ZombieEasterEggQuestSystem {
   dispose(): void {
     this.unsubs.forEach((u) => u());
     this.unsubs.length = 0;
-    for (const m of this.soulBoxMeshes.values()) this.rootGroup.remove(m);
+    for (const m of this.soulBoxMeshes.values()) { disposeOwnedObject(m); this.rootGroup.remove(m); }
     this.soulBoxMeshes.clear();
     this.engine.viewport?.scene?.remove(this.rootGroup);
   }
@@ -198,13 +202,15 @@ export class ZombieEasterEggQuestSystem {
   toJSON(): Record<string, unknown> {
     return {
       enabled: this.config.enabled,
-      currentStepIndex: this.state.currentStepIndex,
-      isQuestCompleted: this.state.isQuestCompleted,
+      ...this.state,
     };
   }
 
   fromJSON(data: Record<string, unknown>): void {
-    if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
+    this.state.isLockdownActive = data.isLockdownActive === true;
+    this.state.lockdownTimeRemaining = Number(data.lockdownTimeRemaining ?? 0);
+    this.state.soulBoxes = structuredClone(data.soulBoxes ?? this.config.soulBoxes) as typeof this.state.soulBoxes;
+    if (typeof data.enabled === 'boolean') this.setConfig({ enabled: data.enabled });
     if (typeof data.currentStepIndex === 'number') this.state.currentStepIndex = data.currentStepIndex;
     if (typeof data.isQuestCompleted === 'boolean') this.state.isQuestCompleted = data.isQuestCompleted;
   }

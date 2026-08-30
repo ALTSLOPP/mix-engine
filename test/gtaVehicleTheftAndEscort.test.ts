@@ -50,13 +50,13 @@ describe('GTA Vehicle Theft System', () => {
     };
     const mockTrafficSystem = {
       findNearestHijackable: vi.fn(() => ({
-        carId: 'car_123',
+        carId: 'car_123', driverId: 'civ_1',
         position: new THREE.Vector3(2, 0, 1),
         yaw: 0,
         speed: 12,
         distance: 2.2,
       })),
-      claimCarForPlayer: vi.fn(),
+      claimCarForPlayer: vi.fn(() => true),
     };
     const mockWantedSystem = {
       reportCrime: vi.fn(),
@@ -71,7 +71,8 @@ describe('GTA Vehicle Theft System', () => {
     expect(result.wasOccupied).toBe(true);
     expect(mockCivSystem.ejectDriver).toHaveBeenCalled();
     expect(mockTrafficSystem.claimCarForPlayer).toHaveBeenCalledWith('car_123');
-    expect(mockWantedSystem.reportCrime).toHaveBeenCalledWith('vehicle_theft', expect.any(Object));
+    expect(mockWantedSystem.reportCrime).not.toHaveBeenCalled();
+    expect(engine.sceneManager.events.emit).toHaveBeenCalledWith('vehicle_theft_committed', expect.objectContaining({ driverId: 'civ_1' }));
     expect(engine.sceneManager.events.emit).toHaveBeenCalledWith('vehicle_hijacked', expect.any(Object));
   });
 });

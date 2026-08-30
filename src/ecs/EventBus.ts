@@ -1,3 +1,5 @@
+import type { GameplayEventMap } from '../features/gameplay/GameplayEventMap';
+type Payload<K extends string> = K extends keyof GameplayEventMap ? GameplayEventMap[K] : unknown;
 export type EventCallback = (data: unknown) => void;
 
 export interface CollisionEventData {
@@ -31,14 +33,14 @@ export class EventBus {
   private listeners = new Map<string, Set<EventCallback>>();
 
   /** Register a listener. Returns an unsubscribe function. */
-  on(event: string, cb: EventCallback): () => void {
+  on<K extends string>(event: K, cb: (data: Payload<K>) => void): () => void {
     let set = this.listeners.get(event);
     if (!set) {
       set = new Set();
       this.listeners.set(event, set);
     }
-    set.add(cb);
-    return () => { set?.delete(cb); };
+    set.add(cb as EventCallback);
+    return () => { set?.delete(cb as EventCallback); };
   }
 
   /** Remove a specific listener. */
@@ -47,7 +49,7 @@ export class EventBus {
   }
 
   /** Emit an event to all listeners. Errors in a listener don't affect others. */
-  emit(event: string, data: unknown): void {
+  emit<K extends string>(event: K, data: Payload<K>): void {
     const set = this.listeners.get(event);
     if (!set || set.size === 0) return;
     for (const cb of set) {

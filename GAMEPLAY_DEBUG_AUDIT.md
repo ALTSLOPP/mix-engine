@@ -1,6 +1,8 @@
 # Modular gameplay debug audit
 
-Audited the 27 registered systems, their player inputs, combat integration, command definitions, configuration persistence, and disposal. This is a code and automated-test pass; it does not certify every advertised mechanic as a finished game feature.
+Historical audit of the 27 systems registered at the time (not the current engine inventory). See the [generated catalog](docs/gameplay-features.generated.md) and [current modular contracts](docs/modular-gameplay-contracts.md).
+
+This pass audited those systems, their player inputs, combat integration, command definitions, configuration persistence, and disposal. This is a code and automated-test pass; it does not certify every advertised mechanic as a finished game feature.
 
 ## Fixes by system
 

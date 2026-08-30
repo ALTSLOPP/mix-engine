@@ -1,3 +1,5 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
+import { gameplayWallet } from './GameplayWallet';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { ActivePowerupDrop, PowerupType, ZombiePowerupsConfig, ZombiePowerupsState } from './types';
@@ -32,6 +34,7 @@ export class ZombiePowerupDropsSystem {
 
   constructor(private readonly engine: Engine, initialConfig: ZombiePowerupsConfig = DEFAULT_ZOMBIE_POWERUPS_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'ZombiePowerupDropsRoot';
     this.setupVisuals();
     this.bindEvents();
@@ -60,6 +63,11 @@ export class ZombiePowerupDropsSystem {
 
   setConfig(config: Partial<ZombiePowerupsConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
+    if (!this.config.enabled) {
+      for (const type of Object.keys(this.state.activeEffects) as PowerupType[]) this.state.activeEffects[type] = 0;
+      this.engine.sceneManager?.events?.emit('fire_sale_ended', {});
+    }
   }
 
   getConfig(): Readonly<ZombiePowerupsConfig> {
@@ -71,10 +79,11 @@ export class ZombiePowerupDropsSystem {
   }
 
   isEffectActive(type: PowerupType): boolean {
-    return (this.state.activeEffects[type] ?? 0) > 0;
+    return this.config.enabled && (this.state.activeEffects[type] ?? 0) > 0;
   }
 
   spawnDrop(position: { x: number; y: number; z: number } | THREE.Vector3, specificType?: PowerupType): ActivePowerupDrop {
+    if (!this.config.enabled) throw new Error('Zombie power-up drops are disabled');
     const types: PowerupType[] = ['insta_kill', 'nuke', 'max_ammo', 'carpenter', 'double_points', 'fire_sale'];
     const chosenType = specificType ?? types[Math.floor(Math.random() * types.length)];
 
@@ -123,6 +132,7 @@ export class ZombiePowerupDropsSystem {
   }
 
   collectDrop(id: string): PowerupType | null {
+    if (!this.config.enabled) return null;
     const idx = this.state.activeDrops.findIndex((d) => d.id === id);
     if (idx === -1) return null;
 
@@ -131,6 +141,7 @@ export class ZombiePowerupDropsSystem {
 
     const mesh = this.dropMeshes.get(id);
     if (mesh) {
+      disposeOwnedObject(mesh);
       this.rootGroup.remove(mesh);
       this.dropMeshes.delete(id);
     }
@@ -151,7 +162,7 @@ export class ZombiePowerupDropsSystem {
           zh.applyZombieHit(z.id, 9999, false, 'torso');
         }
       }
-      (this.engine.sceneManager?.gameState as any)?.addScore?.(this.config.nukePointsAward);
+      gameplayWallet(this.engine).add(this.config.nukePointsAward);
       this.engine.burstVfx?.('explosion', dropPos.clone(), 25);
     } else if (type === 'carpenter') {
       // Rebuild all barricades on map
@@ -159,7 +170,7 @@ export class ZombiePowerupDropsSystem {
       if (barricades) {
         barricades.repairAllBarricades?.();
       }
-      (this.engine.sceneManager?.gameState as any)?.addScore?.(this.config.carpenterPointsAward);
+      gameplayWallet(this.engine).add(this.config.carpenterPointsAward);
     } else if (type === 'max_ammo') {
       // Refill all player ammo
       const shooter = (this.engine.gameplayFeatures as any)?.shooter;
@@ -219,6 +230,7 @@ export class ZombiePowerupDropsSystem {
       if (drop.timeRemaining <= 0) {
         this.state.activeDrops.splice(i, 1);
         if (mesh) {
+          disposeOwnedObject(mesh);
           this.rootGroup.remove(mesh);
           this.dropMeshes.delete(drop.id);
         }
@@ -232,6 +244,7 @@ export class ZombiePowerupDropsSystem {
     this.unsubs.length = 0;
     this.state.activeDrops.length = 0;
     for (const mesh of this.dropMeshes.values()) {
+      disposeOwnedObject(mesh);
       this.rootGroup.remove(mesh);
     }
     this.dropMeshes.clear();
@@ -242,13 +255,24 @@ export class ZombiePowerupDropsSystem {
     return {
       enabled: this.config.enabled,
       activeEffects: { ...this.state.activeEffects },
+      activeDrops: this.state.activeDrops, nextDropId: this.nextDropId,
     };
   }
 
   fromJSON(data: Record<string, unknown>): void {
-    if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
-    if (data.activeEffects && typeof data.activeEffects === 'object') {
-      this.state.activeEffects = { ...this.state.activeEffects, ...(data.activeEffects as any) };
+    for (const mesh of this.dropMeshes.values()) { disposeOwnedObject(mesh); this.rootGroup.remove(mesh); }
+    this.dropMeshes.clear();
+    this.state.activeDrops = [];
+    this.nextDropId = Number(data.nextDropId ?? 1);
+    for (const item of Array.isArray(data.activeDrops) ? data.activeDrops : []) {
+      const drop = { ...item, position: new THREE.Vector3(item.position.x, item.position.y, item.position.z) };
+      this.state.activeDrops.push(drop);
+      this.createDropMesh(drop);
     }
+    if (typeof data.enabled === 'boolean') this.setConfig({ enabled: data.enabled });
+    if (data.activeEffects && typeof data.activeEffects === 'object') {
+      this.state.activeEffects = { ...(data.activeEffects as any) };
+    }
+    this.engine.sceneManager?.events?.emit(this.isEffectActive('fire_sale') ? 'fire_sale_started' : 'fire_sale_ended', {});
   }
 }

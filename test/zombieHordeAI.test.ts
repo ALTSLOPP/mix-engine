@@ -273,6 +273,7 @@ describe('ZombieHordeAISystem — Wave Survival Flow & Presets', () => {
 
   it('manages wave survival round scaling and kill counting', () => {
     const zh = manager.zombieHorde;
+    zh.setConfig({ enabled: true });
     zh.startWave(0);
 
     expect(zh.getWaveState().active).toBe(true);

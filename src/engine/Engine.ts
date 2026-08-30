@@ -563,6 +563,9 @@ export class Engine {
       gameplaySerialize: () => (this.gameplay.loaded ? this.gameplay.serialize() : null),
       gameplayLoad: (def) => this.gameplay.load(def, { quiet: true }),
       gameplayRestore: (s) => this.gameplay.restore(s),
+      featuresSerialize: () => this.gameplayFeatures.toJSON(),
+      featuresValidate: (s) => this.gameplayFeatures.validateSnapshot(s),
+      featuresRestore: (s) => this.gameplayFeatures.fromJSON(s),
       inventorySerialize: () => this.items.serialize(),
       inventoryRestore: (s) => this.items.restore(s),
       stateGetAll: () => {

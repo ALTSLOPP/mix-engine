@@ -25,6 +25,7 @@ export class SaveSystem {
       savedAt: Date.now(),
       gameplayDef: this.host.gameplayDef(),
       gameplayState: this.host.gameplaySerialize(),
+      gameplayFeatures: this.host.featuresSerialize?.() ?? null,
       inventory: this.host.inventorySerialize(),
       state,
       player: this.host.getPlayerTransform(),
@@ -38,6 +39,9 @@ export class SaveSystem {
   load(slot: string): SaveSummary | null {
     const bundle = this.readBundle(slot);
     if (!bundle) return null;
+    if (bundle.gameplayFeatures) {
+      try { this.host.featuresValidate?.(bundle.gameplayFeatures); } catch { return null; }
+    }
 
     // 0. Full mutable world first — destroys/moves spawns are authoritative.
     //    If the bundle has no world (old saves), we keep the current scene intact.
@@ -63,6 +67,8 @@ export class SaveSystem {
     if (bundle.inventory) this.host.inventoryRestore(bundle.inventory);
     // 4. Player position.
     if (bundle.player) this.host.setPlayerTransform(bundle.player.pos, bundle.player.quat);
+    // Restore after world/player reconstruction so owned modifiers target the live character.
+    if (bundle.gameplayFeatures) this.host.featuresRestore?.(bundle.gameplayFeatures);
 
     return this.summarize(bundle);
   }

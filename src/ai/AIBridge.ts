@@ -676,7 +676,7 @@ export type AICommand =
   | { type: 'feature_disable'; feature: import('../features/gameplay/types').GameplayFeatureId }
   | { type: 'feature_configure'; feature: import('../features/gameplay/types').GameplayFeatureId; config: Record<string, unknown> }
   | { type: 'feature_enable_all' }
-  | { type: 'feature_apply_preset'; preset: 'souls' | 'action' | 'shooter' | 'anime' | 'defaults' | 'essentials' | 'city_builder' | 'gta_open_world' | 'fps_starter' }
+  | { type: 'feature_apply_preset'; preset: import('../features/gameplay/GameplayPresets').GameplayPreset }
   | ({ type: 'city_generate_world' } & import('../features/city/types').CityGenerationConfig)
   | ({ type: 'city_build_roads'; algorithm?: import('../features/city/types').RoadAlgorithm; density?: number } & import('../features/city/types').CityGenerationConfig)
   | { type: 'city_zone_districts'; worldSize?: number }

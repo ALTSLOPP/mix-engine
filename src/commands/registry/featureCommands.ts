@@ -1,3 +1,4 @@
+import { GAMEPLAY_PRESETS } from '../../features/gameplay/GameplayPresets';
 import type { CommandDefinition, CommandParamSchema } from '../types';
 import { GameplayFeatureRegistry } from '../../features/gameplay/GameplayFeatureRegistry';
 
@@ -40,7 +41,7 @@ export const featureCommandDefinitions: readonly CommandDefinition[] = [
   command('feature_disable', 'Disable a modular gameplay system and cancel its active actions.', { feature }),
   command('feature_configure', 'Configure a modular gameplay system.', { feature, config: { type: 'object' } }),
   command('feature_enable_all', 'Enable all modular gameplay systems.'),
-  command('feature_apply_preset', 'Apply a gameplay tuning preset.', { preset: { type: 'string', enum: ['souls', 'action', 'shooter', 'anime', 'defaults', 'essentials', 'city_builder', 'gta_open_world', 'fps_starter'] } }),
+  command('feature_apply_preset', 'Apply a gameplay tuning preset.', { preset: { type: 'string', enum: [...GAMEPLAY_PRESETS] } }),
   command('arena_start', 'Start the configured arena waves.'),
   command('target_lock_toggle', 'Toggle the player target lock.'),
   command('ability_cast', 'Cast an ability from a configured slot.', { slot: { type: 'integer', minimum: 1, maximum: 4 } }),

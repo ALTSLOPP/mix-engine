@@ -1,3 +1,5 @@
+import { PersistentGameState } from '../src/ecs/PersistentGameState';
+import { gameplayWallet } from '../src/features/gameplay/GameplayWallet';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as THREE from 'three';
 import { GameplayFeatureRegistry } from '../src/features/gameplay/GameplayFeatureRegistry';
@@ -35,19 +37,14 @@ function createMockEngine(): any {
   const healthMap = new Map<number, { hp: number; maxHp: number; faction: string }>();
   healthMap.set(1, { hp: 100, maxHp: 100, faction: 'player' });
 
-  let currentScore = 10000;
+  const gameState = new PersistentGameState('zombie-test');
+  gameState.clear();
+  gameState.setItem('__gameplay_points__', 10000);
 
   return {
     sceneManager: {
       events,
-      gameState: {
-        get score() {
-          return currentScore;
-        },
-        addScore: (pts: number) => {
-          currentScore += pts;
-        },
-      },
+      gameState,
       getRigidBody: (id: number) => {
         if (id === 1) {
           return { mesh: playerMesh, setNextKinematicTranslation: () => {} };
@@ -59,7 +56,7 @@ function createMockEngine(): any {
       getPossessedId: () => 1,
       enabled: true,
       setInputLocked: vi.fn(),
-      locomotor: { sprintMultiplier: 1.35 },
+      locomotor: { params: { maxRunSpeed: 8 } },
     },
     combat: {
       getHealth: (id: number) => healthMap.get(id) ?? null,
@@ -105,12 +102,12 @@ describe('BarricadeBoardingSystem', () => {
     expect(north?.isBreached).toBe(true);
 
     // Repair 2 planks
-    const initialScore = engine.sceneManager.gameState.score;
+    const initialScore = gameplayWallet(engine).getBalance();
     const added = barricades.repairBarricade('window_north', 2);
     expect(added).toBe(2);
     expect(north?.currentPlanks).toBe(2);
     expect(north?.isBreached).toBe(false);
-    expect(engine.sceneManager.gameState.score).toBe(initialScore + 20);
+    expect(gameplayWallet(engine).getBalance()).toBe(initialScore + 20);
   });
 
   it('restores all barricades across the entire map on carpenter event', () => {
@@ -139,9 +136,9 @@ describe('MysteryBoxSystem', () => {
   });
 
   it('spins box, consumes points, and provides grab window for rolled weapon', () => {
-    const initialScore = engine.sceneManager.gameState.score;
+    const initialScore = gameplayWallet(engine).getBalance();
     expect(box.spinBox()).toBe(true);
-    expect(engine.sceneManager.gameState.score).toBe(initialScore - 950);
+    expect(gameplayWallet(engine).getBalance()).toBe(initialScore - 950);
     expect(box.getState().isSpinning).toBe(true);
 
     // Step spin duration (3.5s)
@@ -174,9 +171,9 @@ describe('PerkVendingSystem', () => {
   });
 
   it('purchases Juggernog and boosts player max health to 250 HP', () => {
-    const initialScore = engine.sceneManager.gameState.score;
+    const initialScore = gameplayWallet(engine).getBalance();
     expect(perks.buyPerk('juggernog')).toBe(true);
-    expect(engine.sceneManager.gameState.score).toBe(initialScore - 2500);
+    expect(gameplayWallet(engine).getBalance()).toBe(initialScore - 2500);
 
     const health = engine.combat.getHealth(1);
     expect(health.maxHp).toBe(250);
@@ -219,9 +216,9 @@ describe('PackAPunchSystem', () => {
   });
 
   it('upgrades weapons across tiers with damage scaling', () => {
-    const initialScore = engine.sceneManager.gameState.score;
+    const initialScore = gameplayWallet(engine).getBalance();
     expect(pap.upgradeWeapon('fps_ak47')).toBe(true);
-    expect(engine.sceneManager.gameState.score).toBe(initialScore - 5000);
+    expect(gameplayWallet(engine).getBalance()).toBe(initialScore - 5000);
 
     // Complete upgrade timer (2.5s)
     pap.update(2.6);
@@ -295,9 +292,9 @@ describe('PowerGridDoorsSystem', () => {
     powerGrid.turnPowerOn();
     expect(powerGrid.isPowerOn()).toBe(true);
 
-    const initialScore = engine.sceneManager.gameState.score;
+    const initialScore = gameplayWallet(engine).getBalance();
     expect(powerGrid.buyDoor('door_hallway_east')).toBe(true);
-    expect(engine.sceneManager.gameState.score).toBe(initialScore - 750);
+    expect(gameplayWallet(engine).getBalance()).toBe(initialScore - 750);
     expect(powerGrid.isDoorOpened('door_hallway_east')).toBe(true);
   });
 
@@ -318,14 +315,14 @@ describe('ZombiePowerupDropsSystem', () => {
   });
 
   it('spawns and collects Nuke powerup to wipe board and award score', () => {
-    const initialScore = engine.sceneManager.gameState.score;
+    const initialScore = gameplayWallet(engine).getBalance();
     const drop = powerups.spawnDrop(new THREE.Vector3(0, 0, 0), 'nuke');
     expect(drop).toBeDefined();
     expect(powerups.getState().activeDrops.length).toBe(1);
 
     const collected = powerups.collectDrop(drop.id);
     expect(collected).toBe('nuke');
-    expect(engine.sceneManager.gameState.score).toBe(initialScore + 400);
+    expect(gameplayWallet(engine).getBalance()).toBe(initialScore + 400);
     expect(powerups.getState().activeDrops.length).toBe(0);
   });
 

@@ -1,6 +1,6 @@
 # Game Essentials
 
-The engine now has **32 modular gameplay systems**, including five general-purpose modules. Open the **Gameplay Feature Hub → GENERAL**, or use its **Game Essentials** preset. The preset enables these five without changing your other gameplay modules.
+The current feature and preset inventory is maintained in the [generated gameplay catalog](docs/gameplay-features.generated.md). This guide covers the five general-purpose modules. Open **Gameplay Feature Hub → GENERAL**, or use the **Game Essentials** preset. Applying a preset now replaces the previous feature pack; use `engine.gameplayFeatures.addPreset('essentials')` to add these five without changing other modules.
 
 | Module ID | Script / engine API | Includes |
 | --- | --- | --- |

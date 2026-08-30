@@ -1,3 +1,4 @@
+import { disposeOwnedObject } from './DisposeOwnedObject';
 import * as THREE from 'three';
 import type { Engine } from '../../engine/Engine';
 import type { EntityId } from '../../ecs/SceneManager';
@@ -29,6 +30,7 @@ export class HellhoundSpecialRoundSystem {
 
   constructor(private readonly engine: Engine, initialConfig: HellhoundsConfig = DEFAULT_HELLHOUNDS_CONFIG) {
     this.config = { ...initialConfig };
+    this.rootGroup.visible = this.config.enabled;
     this.rootGroup.name = 'HellhoundsRoot';
     this.setupVisuals();
   }
@@ -42,6 +44,7 @@ export class HellhoundSpecialRoundSystem {
 
   setConfig(config: Partial<HellhoundsConfig>): void {
     this.config = { ...this.config, ...config };
+    this.rootGroup.visible = this.config.enabled;
   }
 
   getConfig(): Readonly<HellhoundsConfig> {
@@ -57,6 +60,7 @@ export class HellhoundSpecialRoundSystem {
   }
 
   startHellhoundRound(dogCount = this.config.dogsPerPlayer): void {
+    if (!this.config.enabled) return;
     this.state.isHellhoundRound = true;
     this.state.houndsRemaining = dogCount;
     this.state.houndsAlive = 0;
@@ -73,6 +77,7 @@ export class HellhoundSpecialRoundSystem {
   }
 
   spawnHound(position: THREE.Vector3): HellhoundState {
+    if (!this.config.enabled) throw new Error('Hellhound rounds are disabled');
     const id = `hound_${this.nextHoundId++}`;
     const entityId = (20000 + this.nextHoundId) as EntityId;
 
@@ -141,6 +146,7 @@ export class HellhoundSpecialRoundSystem {
 
     const mesh = this.houndMeshes.get(hound.id);
     if (mesh) {
+      disposeOwnedObject(mesh);
       this.rootGroup.remove(mesh);
       this.houndMeshes.delete(hound.id);
     }
@@ -179,14 +185,16 @@ export class HellhoundSpecialRoundSystem {
   update(dt: number): void {
     if (!this.config.enabled) return;
 
+    const playerEntityId = this.engine.player?.getPossessedId?.() ?? null;
+    const playerRb = playerEntityId !== null ? this.engine.sceneManager.getRigidBody(playerEntityId) : null;
     let targetPos = (this.engine.gameplayFeatures as any)?.wonderWeapons?.getActiveDecoyPosition?.();
     const isInPlainSight = (this.engine.gameplayFeatures as any)?.gobbleGums?.isGumActive?.('in_plain_sight');
 
+    const attackingDecoy = !!targetPos;
     if (!targetPos && !isInPlainSight) {
-      targetPos = this.engine.viewport?.camera?.position;
+      targetPos = playerRb?.mesh.position;
     }
 
-    const playerEntityId = this.engine.player?.getPossessedId?.() ?? 1;
 
     for (const hound of this.activeHounds) {
       if (targetPos) {
@@ -196,7 +204,7 @@ export class HellhoundSpecialRoundSystem {
 
         if (dist > 1.2) {
           hound.position.addScaledVector(toTarget.normalize(), this.config.dogSpeed * dt);
-        } else {
+        } else if (!attackingDecoy && playerRb && playerEntityId !== null) {
           // Bite attack
           applyGameplayHit(this.engine, {
             attackerId: hound.entityId,
@@ -221,7 +229,7 @@ export class HellhoundSpecialRoundSystem {
     this.unsubs.forEach((u) => u());
     this.unsubs.length = 0;
     this.activeHounds.length = 0;
-    for (const m of this.houndMeshes.values()) this.rootGroup.remove(m);
+    for (const m of this.houndMeshes.values()) { disposeOwnedObject(m); this.rootGroup.remove(m); }
     this.houndMeshes.clear();
     this.engine.viewport?.scene?.remove(this.rootGroup);
   }
@@ -229,10 +237,22 @@ export class HellhoundSpecialRoundSystem {
   toJSON(): Record<string, unknown> {
     return {
       enabled: this.config.enabled,
+      state: { ...this.state }, activeHounds: this.activeHounds, nextHoundId: this.nextHoundId,
     };
   }
 
   fromJSON(data: Record<string, unknown>): void {
-    if (typeof data.enabled === 'boolean') this.config.enabled = data.enabled;
+    for (const mesh of this.houndMeshes.values()) { disposeOwnedObject(mesh); this.rootGroup.remove(mesh); }
+    this.houndMeshes.clear();
+    this.activeHounds.length = 0;
+    Object.assign(this.state, { isHellhoundRound: false, houndsRemaining: 0, houndsAlive: 0 }, data.state ?? {});
+    this.nextHoundId = Number(data.nextHoundId ?? 1);
+    for (const item of Array.isArray(data.activeHounds) ? data.activeHounds : []) {
+      const hound = { ...item, position: new THREE.Vector3(item.position.x, item.position.y, item.position.z),
+        velocity: new THREE.Vector3(item.velocity.x, item.velocity.y, item.velocity.z) };
+      this.activeHounds.push(hound);
+      this.createHoundMesh(hound);
+    }
+    if (typeof data.enabled === 'boolean') this.setConfig({ enabled: data.enabled });
   }
 }

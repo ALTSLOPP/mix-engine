@@ -23,6 +23,8 @@ export interface SaveBundle {
   gameplayDef: GameplayDef | null;
   /** GameplayDirector.serialize() — variables, quest progress, status, timers, toggles. */
   gameplayState: string | null;
+  /** Versioned modular gameplay configuration and runtime snapshot. */
+  gameplayFeatures?: Record<string, unknown> | null;
   /** InventorySystem.serialize() — every owner's bag. */
   inventory: string;
   /** Persistent key/value flags (excludes the system-owned __gameplay__/__inventory__ mirrors). */
@@ -47,6 +49,9 @@ export interface SaveHost {
   gameplayDef(): GameplayDef | null;
   /** null when no gameplay def is loaded. */
   gameplaySerialize(): string | null;
+  featuresSerialize?(): Record<string, unknown>;
+  featuresValidate?(snapshot: Record<string, unknown>): void;
+  featuresRestore?(snapshot: Record<string, unknown>): void;
   /** Quiet load — structure only, no `start` rules / autostart (see GameplayDirector.load). */
   gameplayLoad(def: GameplayDef): void;
   gameplayRestore(serialized: string): void;

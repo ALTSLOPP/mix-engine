@@ -1,3 +1,5 @@
+import type { RenderResolutionSettings } from '../../rendering/RenderResolution';
+
 export interface PauseMenuConfig {
   enabled: boolean;
   title: string;
@@ -5,7 +7,7 @@ export interface PauseMenuConfig {
   showSettings: boolean;
 }
 
-export interface GameSettingsConfig {
+export interface GameSettingsConfig extends RenderResolutionSettings {
   enabled: boolean;
   persist: boolean;
   storageKey: string;
